@@ -14,6 +14,24 @@ export const purchaseSchema = z.object({ servicioId: z.literal(1), horas: z.numb
 export const serviceSchema = z.object({ servicioId: z.literal(1) }).strict();
 export const emptySchema = z.object({}).strict();
 
+export function quoteSimulationCover(input: z.infer<typeof purchaseSchema>) {
+  const validated = purchaseSchema.parse(input);
+  return {
+    servicioId: validated.servicioId,
+    horas: validated.horas,
+    prima: formatEther(simulation.pricePerHour * BigInt(validated.horas)),
+    pagoFijo: simulation.payout,
+    moneda: "MON" as const,
+    requiereConfirmacion: true as const,
+  };
+}
+
+export function assertSimulationPurchaseAvailable(snapshot: SimulationSnapshot, now = Math.floor(Date.now() / 1000)) {
+  if (snapshot.exchangeCaido) throw new ApiError("EXCHANGE_DOWN", "No se puede comprar cobertura durante la caída del servicio.", 409);
+  const active = snapshot.polizas.filter((policy) => policy.estado === "Activa" && policy.fin > now).length;
+  if (active >= simulation.maxActivePolicies) throw new ApiError("POLICY_LIMIT", "Se alcanzó el máximo de 50 pólizas activas.", 409);
+}
+
 function event(snapshot: SimulationSnapshot, tipo: string, now: number, polizaId: string | null = null) {
   snapshot.eventos.push({ id: `evt-${randomUUID()}`, tipo, polizaId, txHash: null, timestamp: now, ok: true, motivo: null, origen: "simulado" });
 }
@@ -45,16 +63,15 @@ async function mutate(
 export async function buySimulationCover(env: BackendEnvironment, key: string, input: z.infer<typeof purchaseSchema>) {
   const owner = env.DEMO_USER_PRIVATE_KEY ? new Wallet(env.DEMO_USER_PRIVATE_KEY).address : simulatedOwner;
   return mutate(env, key, "comprar", { ...input, dueno: owner }, 201, (snapshot, now) => {
-    if (snapshot.exchangeCaido) throw new ApiError("EXCHANGE_DOWN", "No se puede comprar cobertura durante la caída del servicio.", 409);
-    const active = snapshot.polizas.filter((policy) => policy.estado === "Activa" && policy.fin > now).length;
-    if (active >= simulation.maxActivePolicies) throw new ApiError("POLICY_LIMIT", "Se alcanzó el máximo de 50 pólizas activas.", 409);
+    assertSimulationPurchaseAvailable(snapshot, now);
+    const quote = quoteSimulationCover(input);
     const nextId = snapshot.polizas.reduce((max, policy) => BigInt(policy.id) > max ? BigInt(policy.id) : max, 0n) + 1n;
-    const premium = simulation.pricePerHour * BigInt(input.horas);
+    const premium = parseEther(quote.prima);
     const policy = { id: nextId.toString(), dueno: owner, servicioId: simulation.service, inicio: now, fin: now + input.horas * 3600, estado: "Activa" as const };
     snapshot.polizas.push(policy);
     snapshot.fondo = formatEther(parseEther(snapshot.fondo) + premium);
     event(snapshot, "CoverComprada", now, policy.id);
-    return { poliza: policy, prima: formatEther(premium), pagoFijo: simulation.payout };
+    return { poliza: policy, prima: quote.prima, pagoFijo: quote.pagoFijo };
   });
 }
 

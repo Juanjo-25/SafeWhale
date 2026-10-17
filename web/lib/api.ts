@@ -32,7 +32,7 @@ export function apiErrorResponse(error: unknown): Response {
   }, { status: error instanceof ApiError ? error.status : 503, headers });
 }
 
-function authorize(request: Request, env: BackendEnvironment): void {
+export function authorizeDemoRequest(request: Request, env: BackendEnvironment): void {
   if (!env.DEMO_API_TOKEN) throw new ApiError("DEMO_TOKEN_MISSING", "Configura DEMO_API_TOKEN para habilitar acciones de demo.", 503);
   const supplied = /^Bearer (.+)$/i.exec(request.headers.get("authorization") ?? "")?.[1] ?? "";
   const actual = Buffer.from(supplied);
@@ -42,7 +42,7 @@ function authorize(request: Request, env: BackendEnvironment): void {
   }
 }
 
-async function jsonBody(request: Request): Promise<unknown> {
+export async function readJsonBody(request: Request): Promise<unknown> {
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
     throw new ApiError("CONTENT_TYPE_INVALID", "Envía el body como application/json.", 415);
   }
@@ -76,10 +76,10 @@ export async function simulationMutation<T>(
 ): Promise<Response> {
   try {
     const env = localSimulationEnvironment();
-    authorize(request, env);
+    authorizeDemoRequest(request, env);
     const key = idempotencyKey.safeParse(request.headers.get("idempotency-key"));
     if (!key.success) throw new ApiError("IDEMPOTENCY_KEY_INVALID", "Incluye una Idempotency-Key única de 8 a 128 caracteres.");
-    const input = schema.safeParse(await jsonBody(request));
+    const input = schema.safeParse(await readJsonBody(request));
     if (!input.success) throw new ApiError("BODY_INVALID", "Los datos enviados no cumplen el formato de esta operación.");
     const outcome = await action(env, key.data, input.data);
     return Response.json(outcome.resultado, { status: outcome.status, headers: {
