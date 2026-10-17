@@ -5,10 +5,10 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { GET } from "../app/api/estado/route.ts";
 
-async function routeFixture(t: TestContext, extra: NodeJS.ProcessEnv = {}) {
+async function routeFixture(t: TestContext, extra: Partial<NodeJS.ProcessEnv> = {}) {
   const directory = await mkdtemp(join(tmpdir(), "downtime-estado-"));
   const previous = process.env;
-  process.env = { BACKEND_MODE: "simulado", STATE_FILE: join(directory, "state.json"), ...extra };
+  process.env = { ...extra, NODE_ENV: "test", BACKEND_MODE: extra.BACKEND_MODE ?? "simulado", STATE_FILE: join(directory, "state.json") };
   t.after(async () => {
     process.env = previous;
     await rm(directory, { recursive: true, force: true });

@@ -8,7 +8,9 @@ import { loadBackendEnvironment, webDirectory } from "./load-env.ts";
 try {
   const command = process.argv[2];
   if (command !== "dev" && command !== "start") throw new Error("Comando de servidor inválido.");
-  if (!process.env.NODE_ENV) process.env.NODE_ENV = command === "dev" ? "development" : "production";
+  if (!process.env.NODE_ENV) {
+    process.env = { ...process.env, NODE_ENV: command === "dev" ? "development" : "production" };
+  }
   const { env, stateFile } = loadBackendEnvironment();
   const base = new URL(env.APP_BASE_URL);
   if (base.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(base.hostname) ||

@@ -26,6 +26,7 @@
     "@next/env": "16.4.2",
     "ethers": "6.17.0",
     "next": "16.4.2",
+    "proper-lockfile": "4.1.2",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "server-only": "0.0.1",
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "@types/proper-lockfile": "4.1.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "tsx": "4.23.15",
