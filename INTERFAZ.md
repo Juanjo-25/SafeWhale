@@ -1,9 +1,15 @@
-# Downtime Cover — interfaz propuesta v0.1
+# Downtime Cover — interfaz v0.2
 
-Propuesta para acordar entre P1, P2 y P3 antes de implementar. No describe un
-contrato desplegado ni endpoints implementados. P1 confirma las firmas y publica
-el ABI real; P2 adapta `web/lib/contract.ts` a ese ABI. El nombre del repositorio
-es SafeWhale y el nombre de la demo es Downtime Cover.
+El contrato de `contracts/DowntimeCover (1).sol` y su ABI compilado están
+publicados localmente. `shared/abi.json` se genera con `pnpm compile:contracts`;
+`shared/config.ts` contiene la configuración pública y los valores de referencia;
+`shared/types.ts` define estructuras on-chain y JSON.
+
+La API y `/app` operan según `BACKEND_MODE`: simulación o Monad Testnet. El
+monitor se inicia con `pnpm dev`. La instancia activa está en
+`shared/deployment.json` y las anteriores en `shared/deployments/`. Los hashes
+del ensayo completo se conservan en `contracts/testnet-evidence.json`.
+Las claves permanecen en `web/.env.local`; los archivos compartidos son públicos.
 
 ## Responsables
 
@@ -18,21 +24,24 @@ No modificar las carpetas de otro integrante ni crear commits o pushes sin su
 autorización. No guardar claves privadas ni API keys en `shared/` o en variables
 `NEXT_PUBLIC_*`.
 
-## Parámetros de la demo, pendientes de aprobación del equipo
+## Parámetros de referencia para el próximo despliegue
 
-| Parámetro | Propuesta |
+| Parámetro | Referencia |
 | --- | --- |
 | Red | Monad Testnet, chain ID `10143` |
 | Activo | MON nativo de testnet; esta versión no implementa stablecoins |
-| Servicio | `1` = Exchange Demo; `2` = Bridge Demo, reservado para después |
+| Servicio on-chain | Solo `1` = Exchange Demo. Stripe (`2`) existe únicamente en la simulación actual |
 | Prima por hora | `0.001 MON` = `1000000000000000 wei` |
 | Pago fijo por póliza | `0.01 MON` = `10000000000000000 wei` |
 | Duración comprable | Entero entre 1 y 24 horas; 4 horas en el guion |
 | Umbral de caída | 10 segundos en demo; no equivale a una prima actuarial |
-| Máximo de pólizas activas global | 50 |
+| Máximo de pólizas con reserva global | 50; incluye vencidas con reportes o pagos pendientes |
 | Tope de pagos por evento | 30 pólizas = `0.30 MON`, sumando fondo y bono |
 | Fondo inicial sugerido | `1 MON`, separado del bono |
+| Bono mínimo del constructor | `0.30 MON` = 30 × `0.01 MON` |
 | Bono inicial sugerido | `0.50 MON` |
+| Carencia | 0 segundos |
+| Plazo máximo de reporte | 120 segundos desde el inicio de la caída |
 | Reclamo por falta de pago | Desde 30 segundos después del reporte on-chain |
 | Polling del frontend y monitor | Cada 2 segundos, sin solicitudes superpuestas |
 | Tormenta | Hasta 30 pólizas ya compradas y elegibles |
@@ -42,69 +51,121 @@ wei. Los timestamps JSON y on-chain son Unix en segundos; el cronómetro del
 frontend convierte a milisegundos. Los IDs se serializan como cadenas para evitar
 pérdida de precisión de `uint256` en JavaScript.
 
-## Acuerdo con P1: contrato
+## Interfaz publicada del contrato
 
-Firmas propuestas, que P1 debe validar antes de que P2 conecte transacciones:
+La fuente de verdad para firmas, tuplas, eventos y errores es `shared/abi.json`.
+La web la importa desde `web/hooks/abi.ts`, sin reconstruir un ABI manual.
 
 ```solidity
+constructor(
+    address agent,
+    uint256 precioHora, uint256 indemnizacion, uint256 stakeMinimo,
+    uint256 carencia, uint256 tiempoReclamo, uint256 umbralSegundos,
+    uint256 topePorEvento, uint256 maxHoras, uint256 plazoReporte
+);
 fund() external payable; // onlyOwner
 stakeBond() external payable; // onlyAgent
-buyCover(uint256 servicioId, uint256 horas) external payable returns (uint256);
-reportOutage(uint256 servicioId, uint256 duracionSegundos, bytes32 evidenciaHash) external;
+buyCover(uint256 servicioId, uint256 horas) external payable returns (uint256 id);
+reportOutage(uint256 servicioId, uint256 inicioCaida, uint256 duracionSegundos,
+             bytes32 evidenciaHash) external returns (uint256 caidaId); // onlyAgent
 payout(uint256 polizaId) external; // onlyAgent
 claimAgentFailure(uint256 polizaId) external; // dueño de la póliza
-getPolicies() external view returns (Policy[] memory);
-getOutage(uint256 servicioId) external view returns (Outage memory);
+getPolicy(uint256 polizaId) external view returns (Poliza memory);
+getPolicies() external view returns (Poliza[] memory);
+listarPolizas(uint256 desde, uint256 cantidad) external view returns (Poliza[] memory);
+getOutage(uint256 servicioId) external view returns (Caida memory);
+caidaPagable(uint256 polizaId) external view returns (uint256);
 fundBalance() external view returns (uint256);
 bondBalance() external view returns (uint256);
+expirar(uint256 polizaId) external;
+retirar(uint256 monto) external; // onlyOwner
+retirarBono(uint256 monto) external; // onlyAgent
 ```
 
-Se propone cambiar el parámetro original `minutos` por `duracionSegundos` para
-representar el umbral de 10 segundos. No usar minutos fraccionarios ni unidades
-implícitas. Si P1 conserva minutos enteros, el umbral de demo debe pasar a 1 minuto.
+`demoConstructorArgs(agent)` en `shared/config.ts` devuelve los diez argumentos
+en ese orden. Son valores de referencia, no valores leídos de un despliegue.
+La dirección del agente debe ser distinta de cero y controlada por su wallet.
 
-`Policy`: `id`, `dueno`, `servicioId`, `inicio`, `fin`, `estado`.
-`Outage`: `id`, `servicioId`, `inicio`, `reportadoEn`, `duracionSegundos`,
+`Poliza`: `id`, `dueno`, `servicioId`, `inicio`, `fin`, `estado`.
+`Caida`: `id`, `servicioId`, `inicio`, `reportadoEn`, `duracionSegundos`,
 `evidenciaHash`, `pagosRealizados`.
-`Estado`: `Activa=0`, `Pagada=1`, `Expirada=2`; la lectura debe reflejar la
-expiración sin exigir que cada usuario envíe una transacción.
+`EstadoPoliza`: `Activa=0`, `Pagada=1`, `Expirada=2`. ethers devuelve los enteros
+como `bigint`; JSON usa IDs decimales como strings y timestamps en segundos.
+Una lectura puede mostrar `Expirada` y conservar un derecho pendiente;
+`caidaPagable` permite consultar si sigue existiendo un siniestro cobrable.
 
-Invariantes que contrato y simulación deben respetar:
+Los getters de parámetros son `precioHora`, `indemnizacion`, `stakeMinimo`,
+`carencia`, `tiempoReclamo`, `umbralSegundos`, `topePorEvento`, `maxHoras` y
+`plazoReporte`. `SERVICIO_DEMO` vale 1 y `MAX_POLIZAS_CON_RESERVA` vale 50.
+`poolDisponible()` ya no existe: usar `fundBalance()` para el fondo;
+`bondBalance()` para el bono. `obtenerBalanceContrato()` devuelve el saldo físico
+total, que no debe usarse como fondo disponible.
 
-- Compra: prima exacta, servicio habilitado, duración válida, sin evento de caída
-  reportado para ese servicio y sin superar el máximo de pólizas activas.
-- Caída elegible: `poliza.inicio <= caida.inicio < poliza.fin`. Comprar durante
-  una caída no debe habilitar un pago. Un reporte posterior al fin puede probar
-  una caída ocurrida durante la cobertura; expirar no debe borrar ese derecho.
-- P1 debe definir cómo obtener `caida.inicio` y acotar reportes antiguos. El agente
-  sigue siendo el oráculo de confianza; un hash por sí solo no demuestra la caída.
-- Un pago por póliza, ya sea desde el fondo o desde el bono. Siempre al dueño;
-  ninguna función de pago recibe un destino o monto arbitrario.
-- Fondo y bono tienen contabilidad separada. Fondos insuficientes revierten;
-  el contrato no usa silenciosamente el bono para un payout normal.
-- Reclamo: dueño, reporte elegible, espera cumplida, póliza sin pagar, bono
-  suficiente y tope del evento disponible. Marca pagada antes de transferir.
-- El tope por evento incluye payouts y reclamos. No garantiza compensar a todas
-  las pólizas si se venden más coberturas que el tope; esto debe mostrarse en demo.
-- Proponer un solo evento por servicio y despliegue para el MVP. Repetir un
-  reporte del mismo servicio revierte y no reinicia la espera ni el tope.
-  Para ensayar otra caída, desplegar otra instancia. Varios incidentes por servicio
-  requieren IDs, recuperación y asociación póliza-evento explícitos.
+Reglas del contrato:
 
-Eventos propuestos: `CoverComprada`, `CaidaReportada`, `Pagado`, `Reclamado`,
-`FondoDepositado`, `BonoDepositado`. Deben incluir IDs, dueño y monto cuando
-corresponda. Errores: `SinCaida`, `YaPagada`, `FueraDeVentana`, `NoEsDueno`,
-`EsperaPendiente`, `TopeEvento`, `FondoInsuficiente`, `BonoInsuficiente`,
-`PrimaIncorrecta`, `DuracionInvalida`, `ServicioInvalido`, `CaidaYaReportada`.
+- Constructor: bono mínimo suficiente para todo el tope del evento. No puede
+  desplegarse con un mínimo inferior a `indemnizacion × topePorEvento`.
+- Compra: prima exacta, solo servicio 1, de 1 a `maxHoras`, bono mínimo depositado,
+  fondo solvente, sin caída reportada y máximo de 50 reservas pendientes.
+- Elegibilidad: `poliza.inicio <= caida.inicio < poliza.fin`. El inicio de la caída
+  es declarado por el agente, el oráculo de confianza. El hash identifica evidencia
+  y no demuestra su veracidad. Una compra posterior al inicio no resulta elegible.
+- Reporte: duración en segundos al menos igual al umbral, inicio no futuro,
+  duración no mayor que el tiempo transcurrido, evidencia no nula y presentación
+  dentro de `plazoReporte` desde el inicio. Solo un reporte por despliegue.
+- Reportar después del fin de una póliza puede probar una caída iniciada dentro
+  de su cobertura. Sin reporte, la reserva se conserva hasta `fin + plazoReporte`;
+  con un siniestro elegible y cupo, se conserva hasta pagar o agotar el tope.
+- Un pago por póliza desde el fondo o el bono, siempre al dueño y por monto fijo.
+  Los payouts no consumen el bono; los reclamos no consumen el fondo.
+- Reclamo: dueño, reporte elegible, espera desde `reportadoEn`, póliza sin pagar,
+  bono suficiente y cupo. Los reclamos reducen el bono legítimamente; si queda
+  bajo el mínimo, los retiros adicionales se bloquean mientras existan reservas.
+- El owner solo retira fondo que exceda las reservas. El agente solo retira bono
+  conservando `stakeMinimo` mientras existan reservas, también después del vencimiento.
+- El tope comparte payouts y reclamos; no garantiza pagar las 50 pólizas si el
+  evento permite solo 30 pagos. Repetir el ensayo requiere una nueva instancia.
 
-P1 entrega también dirección, bloque de despliegue, constructor y las constantes
-reales. No construir un ABI ficticio como si proviniera de Remix.
+Eventos y campos publicados, en orden:
+
+- `CoverComprada(polizaId, dueno, servicioId, inicio, fin, prima)`; los tres
+  primeros campos son indexed.
+- `CaidaReportada(caidaId, servicioId, inicio, reportadoEn, duracionSegundos, evidenciaHash)`;
+  los dos primeros campos son indexed.
+- `Pagado(polizaId, dueno, monto, caidaId)` y `Reclamado(...)`;
+  `polizaId`, `dueno` y `caidaId` son indexed.
+- `FondoDepositado(emisor, monto, fondoTotal)`, `BonoDepositado(agente, monto, bonoTotal)`,
+  `PolizaExpirada(polizaId)`, `FondoRetirado(destinatario, monto)` y
+  `BonoRetirado(destinatario, monto)`.
+
+Los errores reales están incluidos en el ABI, entre ellos `SinCaida`, `YaPagada`,
+`FueraDeVentana`, `NoEsDueno`, `EsperaPendiente`, `TopeEvento`,
+`FondoInsuficiente`, `BonoInsuficiente`, `PrimaIncorrecta`, `DuracionInvalida`,
+`ServicioInvalido`, `CaidaYaReportada`, `ReporteFueraDePlazo` y `DerechoPendiente`.
+
+Verificar antes de entregar o desplegar:
+
+```bash
+pnpm compile:contracts
+pnpm test:contracts
+pnpm check:web
+pnpm typecheck:backend
+pnpm test:backend
+```
+
+La simulación comparte precios, reservas pendientes, topes y reglas de pago,
+pero nunca produce hashes ni representa movimientos de MON. En testnet, las
+compras y los reclamos los firma la wallet de usuario de demo; reportes y payouts
+usan la wallet del agente. Las respuestas exitosas requieren receipt y bloque
+finalizado. Una respuesta incierta conserva hash y clave para reconciliarla.
 
 ## API que P2 entrega a P3
 
 Todas las rutas usan Node.js. GET de estado con `Cache-Control: no-store`.
-Validar bodies, servicio, IDs y límites antes de firmar. Los endpoints de control
-de demo deben estar protegidos; acordar el mecanismo antes de exponerlos en Vercel.
+Validar bodies, servicio, IDs y límites antes de firmar. Los endpoints mutantes de testnet requieren `DEMO_API_TOKEN` por Bearer o una
+sesión HttpOnly del mismo origen. `/api/demo-session` establece esa sesión. El
+navegador no recibe claves privadas. El estado de archivos requiere un proceso
+local persistente; esta versión no permite desplegar la API en Vercel.
 La API usa únicamente wallets de demo configuradas en servidor: recibir una
 dirección en el body no autoriza firmar en nombre de esa dirección.
 
@@ -192,11 +253,17 @@ mutaciones, o una API respaldada por almacenamiento durable. No mantener dos
 copias independientes en memoria. Persistir hashes enviados y reconciliar
 receipts tras reinicios para evitar reportes y pagos repetidos.
 
-Un `NonceManager` por proceso no coordina dos procesos con la misma wallet.
-Propuesta: el monitor es el único emisor de `reportOutage` y `payout`, incluida
-Tormenta; la API solicita trabajo al monitor. Serializar los envíos por wallet,
-usar `NonceManager` de ethers v6 y esperar receipts con concurrencia acotada.
-No asumir 30 RPC simultáneas ni 30 transacciones minadas en un segundo.
+API y monitor comparten el journal `STATE_FILE.chain.json` y un bloqueo de
+archivo entre procesos. Las transacciones guardan bytes firmados, hash y nonce
+antes del broadcast, y reconciliar un envío pendiente bloquea nuevos envíos de
+esa wallet. Un reintento no crea otra compra. El navegador conserva únicamente
+las claves de idempotencia pendientes en sessionStorage para sobrevivir recargas.
+
+El monitor reporta y paga normalmente; Tormenta usa el mismo bloqueo para
+serializar sus payouts y devolver resultados parciales por ID. La firma del
+agente no puede enviar importes o destinos arbitrarios a través de estas API.
+Detener los procesos antes de cambiar de instancia evita utilizar las mismas
+wallets simultáneamente en dos despliegues. No prometer 30 pagos en un segundo.
 
 `state.json` local no es almacenamiento compartido para Vercel. Antes de desplegar,
 mover el estado a un almacén durable y alojar el monitor en un proceso persistente,
@@ -212,7 +279,7 @@ El reclamo no depende de Gemini ni del proceso de payouts.
 Si se apaga el único monitor antes de reportar, el contrato no conoce la caída y
 el reclamo descrito no puede probarla. No prometer protección frente a ese caso.
 Resolverlo requiere un reportero independiente o un mecanismo de prueba adicional.
-`agenteActivo:false` debe significar payouts desactivados en esta demo, sin
+`agenteActivo:false` significa payouts desactivados en esta demo, sin
 confundirlo con una caída completa de toda la API.
 
 ## Variables de entorno propuestas
@@ -222,6 +289,8 @@ MONAD_RPC_URL=https://testnet-rpc.monad.xyz
 MONAD_CHAIN_ID=10143
 CONTRACT_ADDRESS=
 CONTRACT_DEPLOY_BLOCK=
+OWNER_PRIVATE_KEY=
+TX_WAIT_MS=45000
 AGENT_PRIVATE_KEY=
 DEMO_USER_PRIVATE_KEY=
 GEMINI_API_KEY=
@@ -238,7 +307,7 @@ habilitar firmas.
 
 ## Validación por entregas
 
-1. P1 confirma firmas, unidades y parámetros; publica contrato mínimo, dirección y ABI.
+1. Contrato, ABI y parámetros publicados; dirección y bloque activos en shared/deployment.json.
 2. P2 entrega `/api/estado` y compra simulada; P3 conecta polling y estados de error.
 3. P2 conecta compra testnet y comprueba receipt, dueño y prima exactos.
 4. Monitor: caída continua, reporte único, payout único, reinicio y fallo parcial.

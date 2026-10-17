@@ -7,10 +7,10 @@ interface Props {
   demo: boolean;
   onToggleDemo: () => void;
   account: string | null;
-  onConnect: () => void;
+  modo: 'simulado' | 'testnet' | null;
 }
 
-export function AppHeader({ demo, onToggleDemo, account, onConnect }: Props) {
+export function AppHeader({ demo, onToggleDemo, account, modo }: Props) {
   return (
     <header className="flex flex-wrap items-center gap-3 rounded-full bg-white py-[10px] pl-[14px] pr-[10px] shadow-card">
       <Link href="/" aria-label="Ir al inicio de SafeWhale" className="flex min-w-0 flex-auto items-center gap-[10px] text-ink no-underline">
@@ -20,7 +20,7 @@ export function AppHeader({ demo, onToggleDemo, account, onConnect }: Props) {
       </Link>
       <div className="flex flex-wrap items-center gap-2">
         <span className="flex h-10 items-center gap-2 rounded-full bg-soft px-[14px] text-[14px] text-ink-2 max-[759px]:hidden">
-          <Punto color={C.green} />Monad Testnet
+          <Punto color={modo === 'testnet' ? C.green : modo === 'simulado' ? C.orange : C.gray} />{modo === 'testnet' ? 'Monad Testnet' : modo === 'simulado' ? 'Simulación · API' : 'Conectando…'}
         </span>
         <button
           type="button"
@@ -37,13 +37,9 @@ export function AppHeader({ demo, onToggleDemo, account, onConnect }: Props) {
             />
           </span>
         </button>
-        <button
-          type="button"
-          onClick={onConnect}
-          className={`hit-44 h-10 cursor-pointer rounded-full border-0 bg-ink px-[18px] text-[14px] font-medium text-white transition duration-150 hover:bg-[#333] active:scale-[0.97] ${account ? 'font-mono' : 'font-sans'}`}
-        >
-          {account ? short(account) : 'Conectar wallet'}
-        </button>
+        {account && <span className="flex h-10 items-center rounded-full bg-ink px-[18px] font-mono text-[14px] font-medium text-white" title="Cuenta de demo del servidor">
+          Demo · {short(account)}
+        </span>}
       </div>
     </header>
   );

@@ -6,8 +6,9 @@ import { useAcciones } from '@/hooks/useAcciones';
 import { useEstado } from '@/hooks/useEstado';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useNow } from '@/hooks/useNow';
-import { useWallet } from '@/hooks/useWallet';
-import { EXPLORER, dur, hhmm, hms, mon, num, secs, short, svcName } from '@/hooks/formato';
+import { post, errorMessage, rememberDemoAccess } from '@/hooks/api';
+import { explorerLink } from '@/hooks/estado-api';
+import { dur, hhmm, hms, mon, num, secs, short, svcName } from '@/hooks/formato';
 import type { Evento, Poliza } from '@/hooks/tipos';
 import { ActividadCard } from './ActividadCard';
 import { AppHeader } from './AppHeader';
@@ -23,29 +24,32 @@ import { TormentaCard } from './TormentaCard';
 
 const BIENVENIDA: Mensaje = {
   role: 'agent',
-  text: 'Hola. Te cubro por horas: si la pasarela, la nube o la plataforma de la que depende tu negocio se cae mientras estás cubierto, el contrato te paga solo. ¿Qué servicio usas y cuántas horas quieres?'
+  text: 'Hola. Puedo cotizar una cobertura de Exchange Demo por entre 1 y 24 horas. La compra requiere tu confirmación. ¿Cuántas horas necesitas?'
 };
 
-const EV_TITULO: Record<string, string> = { CoverComprada: 'Cobertura comprada', CaidaReportada: 'Caída reportada', Pagado: 'Pagado', Reclamado: 'Reclamado del bono', Revertido: 'Revertido', Tormenta: 'Tormenta completada' };
+const EV_TITULO: Record<string, string> = { ServicioCaido: 'Servicio caído', ServicioRestaurado: 'Servicio restaurado', ExchangeCaido: 'Servicio caído', AgenteApagado: 'Pagos desactivados', CoverComprada: 'Cobertura comprada', CaidaReportada: 'Caída reportada', Pagado: 'Pagado', Reclamado: 'Reclamado del bono', Revertido: 'Revertido', Tormenta: 'Tormenta completada' };
 const EV_DOT: Record<string, string> = { CoverComprada: C.orange, CaidaReportada: C.blue, Pagado: C.green, Reclamado: C.purple, Revertido: C.red, Tormenta: C.green };
 const evT = (e: Evento) => (EV_TITULO[e.tipo] || e.tipo) + (e.ok === false && e.motivo ? ' · ' + e.motivo : '');
-
-const MOTIVO_TEXTO = { PolizaInvalida: 'la póliza no existe.', YaPagada: 'esa póliza ya se pagó una vez.', SinCaida: 'no hay una caída reportada que cubra esta póliza.' };
 
 const gap = 'gap-[clamp(16px,2.4vw,28px)]';
 
 export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
-  const s = useEstado();
+  const { estado: s, loading, error: stateError, refresh } = useEstado();
   const reloj = useNow(250);
   const isMobile = useMediaQuery('(max-width: 759px)');
 
   const [mensajes, setMensajes] = useState<Mensaje[]>([BIENVENIDA]);
   const agentSay = useCallback((text: string) => setMensajes((m) => [...m, { role: 'agent', text }]), []);
-  const wallet = useWallet(agentSay);
-  const acciones = useAcciones(wallet);
+  const acciones = useAcciones(refresh);
+  const [accessToken, setAccessToken] = useState('');
+  const [accessBusy, setAccessBusy] = useState(false);
+  const [localStorm, setLocalStorm] = useState<import('@/hooks/tipos').Tormenta | null>(null);
+  const [controlBusy, setControlBusy] = useState(false);
+  const controlRef = useRef(false);
+  const typingRef = useRef(false);
 
   const [demo, setDemo] = useState(demoInicial);
-  const [servicio, setServicio] = useState(5);
+  const [servicio, setServicio] = useState(1);
   const [horas, setHoras] = useState(4);
   const [horasInput, setHorasInput] = useState('4');
   const [coverFocus, setCoverFocus] = useState(false);
@@ -85,63 +89,79 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
     setFocusTick((t) => t + 1);
   };
 
-  const buy = async (h: number, msgIndex?: number, svc = servicio) => {
-    if (buyingRef.current) return;
-    h = Math.min(s.maxHoras, Math.max(1, Math.floor(h) || 1));
-    const acc = wallet.account ?? (await wallet.connect());
-    if (!acc) return;
-    buyingRef.current = true;
-    setBuying(true);
-    setBusyMsg(msgIndex ?? null);
-    const r = await acciones.comprar(h, svc, acc);
-    buyingRef.current = false;
-    setBuying(false);
-    setBusyMsg(null);
-    if (!r.ok) { agentSay('La compra se revirtió: ' + r.error + '. No se cobró nada.'); return; }
-    if (msgIndex != null) setMensajes((ms) => ms.map((m, k) => (k === msgIndex ? { ...m, done: true } : m)));
-    agentSay('Listo. Póliza #' + r.poliza.id + ' activa hasta las ' + hhmm(r.poliza.fin) + '. Si ' + svcName(svc) + ' se cae más de ' + s.umbralSeg + ' s, te llegan ' + mon(s.indemnizacion) + '.');
+  const backendReady = () => {
+    if (!s.autorizado) { setBanner({ kind: 'warn', title: 'Acceso de demo', text: 'Introduce el token del servidor para autorizar las transacciones.' }); return false; }
+    if (!stateError && !loading) return true;
+    setBanner({ kind: 'warn', title: 'Conexión al backend', text: stateError ?? 'Espera a que el backend termine de cargar.' });
+    return false;
   };
 
-  const claim = async (id: number) => {
-    if (claimingRef.current) return;
-    claimingRef.current = true;
-    setClaiming(true);
-    const r = await acciones.reclamar(id);
-    if (!r.ok) agentSay('El reclamo se revirtió: ' + r.error + '.');
-    claimingRef.current = false;
-    setClaiming(false);
+  const buy = async (h: number, msgIndex?: number, svc = servicio) => {
+    if (buyingRef.current || !backendReady() || (msgIndex != null && mensajes[msgIndex]?.done)) return;
+    buyingRef.current = true; setBuying(true); setBusyMsg(msgIndex ?? null);
+    try {
+      const r = await acciones.comprar(h, svc);
+      if (msgIndex != null) setMensajes((ms) => ms.map((m, k) => k === msgIndex ? { ...m, done: true } : m));
+      setBanner(null);
+      agentSay('Póliza #' + r.poliza.id + ' registrada hasta las ' + hhmm(r.poliza.fin) + '. Prima: ' + mon(s.precioHora * h) + (r.modo === 'testnet' ? '. Transacción confirmada en Monad: ' + r.txHash : '. Compra simulada, sin transacción on-chain.'));
+    } catch (error) {
+      const text = errorMessage(error);
+      setBanner({ kind: 'err', title: 'Compra sin confirmar', text });
+      agentSay('No pude confirmar la compra: ' + text);
+    } finally { buyingRef.current = false; setBuying(false); setBusyMsg(null); }
+  };
+
+  const claim = async (id: number | string) => {
+    if (claimingRef.current || !backendReady()) return;
+    claimingRef.current = true; setClaiming(true);
+    try { await acciones.reclamar(id); }
+    catch (error) { agentSay('No se pudo completar el reclamo: ' + errorMessage(error)); }
+    finally { claimingRef.current = false; setClaiming(false); }
   };
 
   const sendText = async (raw: string) => {
-    const text = (raw || '').trim();
-    if (!text) return;
+    const text = raw.trim();
+    if (!text || typingRef.current || !backendReady()) return;
+    typingRef.current = true; setTyping(true); setInput('');
     setMensajes((m) => [...m, { role: 'user', text }]);
-    setInput('');
-    setTyping(true);
-    const r = await acciones.chat(text, servicioRef.current);
-    const svc = r.svc || servicioRef.current;
-    setTyping(false);
-    if (r.quote && r.horas) { setHoras(r.horas); setHorasInput(String(r.horas)); }
-    setServicio(svc);
-    setMensajes((m) => [...m, { role: 'agent', text: r.text, quote: !!r.quote, horas: r.horas, svc }]);
+    try {
+      const r = await acciones.chat(text);
+      const svc = r.svc ?? servicioRef.current;
+      if (r.quote && r.horas) { setHoras(r.horas); setHorasInput(String(r.horas)); }
+      setServicio(svc);
+      setMensajes((m) => [...m, { role: 'agent', text: r.text, quote: !!r.quote, horas: r.horas, svc, prima: r.prima, pagoFijo: r.pagoFijo }]);
+    } catch (error) { agentSay('Gemini no pudo responder: ' + errorMessage(error)); }
+    finally { typingRef.current = false; setTyping(false); }
   };
 
-  const tumbar = () => {
-    const r = acciones.tumbar(servicio);
-    setBanner(!r.caido || r.hayActivas ? null : { kind: 'warn', title: 'Sin pólizas activas', text: 'La caída se reporta igual, pero no hay a quién pagar. Compra una cobertura primero.' });
+  const control = async (action: () => Promise<unknown>, title: string) => {
+    if (controlRef.current || !backendReady()) return;
+    controlRef.current = true; setControlBusy(true);
+    try { const result = await action() as { motivo?: string; rechazado?: boolean }; setBanner({ kind: 'warn', title, text: result?.rechazado ? 'El contrato rechazó el intento: ' + result.motivo + '. No se envió una transacción.' : 'Estado actualizado. El monitor conserva la detección y el reporte; el interruptor controla los pagos.' }); }
+    catch (error) { setBanner({ kind: 'err', title: 'Acción sin confirmar', text: errorMessage(error) }); }
+    finally { controlRef.current = false; setControlBusy(false); }
   };
-  const atacar = () => {
-    const motivo = acciones.atacar();
-    setBanner({ kind: 'err', title: 'revert ' + motivo + '()', text: 'El agente intentó cobrar sin cumplir las reglas y el contrato lo bloqueó: ' + MOTIVO_TEXTO[motivo] });
+  const tumbar = () => control(() => s.exchangeCaido ? acciones.restaurar(servicio) : acciones.tumbar(servicio), s.exchangeCaido ? 'Servicio restaurado' : 'Caída activada en el mock');
+  const apagar = () => control(() => acciones.apagarAgente(!s.agenteActivo), s.agenteActivo ? 'Pagos del agente desactivados' : 'Pagos del agente habilitados');
+  const storm = async () => {
+    const ids = s.polizas.filter((p) => s.caidasPagables[String(p.id)] && s.caidasPagables[String(p.id)] !== '0').slice(0, 30).map((p) => p.id);
+    if (!ids.length) { setBanner({ kind: 'warn', title: 'Tormenta', text: 'Primero compra pólizas y espera el reporte de una caída elegible.' }); return; }
+    await control(async () => { const start = performance.now(); const result = await acciones.tormenta(ids);
+      setLocalStorm({ start, end: start + result.duracionMs, paid: result.resultados.map((r) => r.ok) });
+      agentSay(result.resultados.map((r) => '#' + r.polizaId + ': ' + (r.ok ? 'pago confirmado' : r.motivo)).join(' · '));
+      return result;
+    }, 'Tormenta finalizada');
   };
-  const apagar = () => {
-    const on = acciones.apagarAgente();
-    setBanner(on ? null : { kind: 'warn', title: 'Agente apagado', text: 'El monitor reporta la caída pero nadie llama a payout. Tumba el servicio y reclama del bono cuando venza el plazo.' });
+  const unlock = async () => {
+    if (accessBusy) return; setAccessBusy(true);
+    try { await post('demo-session', { token: accessToken }); rememberDemoAccess(accessToken); setAccessToken(''); await refresh(); setBanner(null); }
+    catch (error) { setBanner({ kind: 'err', title: 'Acceso rechazado', text: errorMessage(error) }); }
+    finally { setAccessBusy(false); }
   };
 
   // ── Derivados (misma lógica que renderVals de la referencia) ──
   const now = Math.max(reloj, Date.now());
-  const pol: Poliza | undefined = s.polizas[0];
+  const pol: Poliza | undefined = s.polizas.find((p) => p.dueno.toLowerCase() === s.cuentaDemo?.toLowerCase());
   const active = !!pol && pol.estado === 0 && pol.fin > now;
   const sinceRep = s.caidaReportada ? now - s.caidaReportada : 0;
   const caidaMs = s.caidaInicio ? now - s.caidaInicio : 0;
@@ -149,28 +169,31 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
   const umbral = s.umbralSeg;
   const estadoOf = (p: Poliza) => (p.estado === 1 ? (p.via === 'bono' ? 'Pagada por bono' : 'Pagada') : p.estado === 2 || p.fin <= now ? 'Expirada' : 'Activa');
 
+  const eligible = !!pol && !!s.caidasPagables[String(pol.id)] && s.caidasPagables[String(pol.id)] !== '0';
+  const canClaim = eligible && sinceRep >= R && s.bono >= s.indemnizacion && s.autorizado && !claiming && !stateError;
   let base: Partial<Caja> & Pick<Caja, 'head' | 'glyph' | 'color' | 'text'>;
-  if (!pol) base = { head: 'Sin cobertura', glyph: '+', color: C.orange, text: 'Elige cuántas horas cubrir. Pagas la prima con MetaMask y el contrato guarda la póliza.', actionLabel: 'Cubrir ahora', action: focusCover };
-  else if (pol.estado === 1) base = { head: pol.via === 'bono' ? 'Cobrado del bono' : 'Pago automático', meta: pol.via === 'bono' ? '' : secs(pol.pagoMs || 0), glyph: '✓', color: C.green, text: 'Recibiste ' + mon(s.indemnizacion) + (pol.via === 'bono' ? ' desde el bono del agente.' : ' en ' + secs(pol.pagoMs || 0) + ' después del reporte.'), url: EXPLORER + pol.hash, linkLabel: 'Ver transacción' };
-  else if (!active) base = { head: 'Póliza expirada', glyph: '·', color: C.gray, text: 'No hubo caídas durante tu cobertura.', actionLabel: 'Comprar otra', action: focusCover };
-  else if (s.exchangeCaido && !s.caidaReportada) base = { head: svcName(s.caidaSvc) + ' sin respuesta', meta: Math.floor(caidaMs / 1000) + ' / ' + umbral + ' s', glyph: '!', color: C.orange, text: 'Se reporta al contrato cuando pase el umbral de ' + umbral + ' s.', hasBar: true, barPct: Math.min(100, caidaMs / (umbral * 10)) + '%' };
+  if (!pol) base = { head: 'Sin cobertura', glyph: '+', color: C.orange, text: 'Elige las horas y confirma la compra para la cuenta de demo. ' + (s.modo === 'testnet' ? 'Se enviará una transacción a Monad Testnet.' : 'La operación será simulada.'), actionLabel: 'Cubrir ahora', action: focusCover };
+  else if (pol.estado === 1) base = { head: pol.via === 'bono' ? 'Cobrado del bono' : 'Pago automático', meta: '', glyph: '✓', color: C.green, text: 'Pago registrado: ' + mon(s.indemnizacion) + (pol.via === 'bono' ? ' desde el bono del agente.' : ' desde el fondo.'), url: explorerLink(pol.hash), linkLabel: pol.hash ? 'Ver transacción' : '' };
+  else if (eligible && sinceRep >= R) base = { head: 'Reclamo disponible', glyph: '!', color: C.red, text: 'El plazo de pago venció. Puedes cobrar desde el bono, incluso si la cobertura ya venció.', actionLabel: canClaim ? 'Reclamar ' + mon(s.indemnizacion) : 'Reclamo pendiente', action: canClaim ? () => claim(pol.id) : null };
+  else if (eligible) base = { head: 'Caída reportada', meta: Math.max(0, Math.ceil((R - sinceRep) / 1000)) + ' s para reclamar', glyph: '↯', color: C.blue, text: s.agenteActivo ? 'El monitor puede ejecutar el pago hacia la cuenta de demo.' : 'Los pagos están desactivados. El reclamo quedará disponible al vencer la espera.' };
+  else if (!active) base = { head: 'Póliza expirada', glyph: '·', color: C.gray, text: 'La cobertura llegó a su fecha de vencimiento.', actionLabel: 'Comprar otra', action: focusCover };
+  else if (s.exchangeCaido && !s.caidaReportada) base = { head: svcName(s.caidaSvc) + ' sin respuesta', meta: Math.floor(caidaMs / 1000) + ' / ' + umbral + ' s', glyph: '!', color: C.orange, text: 'Caída del mock registrada. El monitor exige continuidad durante el umbral antes de reportar.', hasBar: true, barPct: Math.min(100, caidaMs / (umbral * 10)) + '%' };
   else if (s.caidaReportada && s.agenteActivo) base = { head: 'Caída reportada', meta: secs(sinceRep), glyph: '↯', color: C.blue, text: 'Ejecutando payout hacia tu cuenta.' };
   else if (s.caidaReportada && sinceRep < R) base = { head: 'El agente no pagó', meta: Math.ceil((R - sinceRep) / 1000) + ' s', glyph: '!', color: C.red, text: 'Se reportó la caída pero nadie llamó a payout. Cuando venza el plazo cobras del bono del agente.', hasBar: true, barPct: (sinceRep / R * 100) + '%' };
-  else if (s.caidaReportada) base = { head: 'Plazo vencido', glyph: '!', color: C.red, text: 'El bono del agente responde por ti.', actionLabel: claiming ? 'Confirma en MetaMask…' : 'Reclamar ' + mon(s.indemnizacion), action: () => claim(pol.id) };
-  else base = { head: 'Vigilando ' + svcName(pol.servicioId), meta: 'servicioId ' + pol.servicioId, glyph: '✓', color: C.blue, text: 'Todo opera normal. Si se cae más de ' + umbral + ' s, te pago ' + mon(s.indemnizacion) + ' automáticamente.', url: EXPLORER + pol.buyHash, linkLabel: 'Ver póliza on-chain' };
+  else if (s.caidaReportada) base = { head: 'Plazo vencido', glyph: '!', color: C.red, text: 'El bono del agente responde por ti.', actionLabel: claiming ? 'Procesando reclamo…' : 'Reclamar ' + mon(s.indemnizacion), action: () => claim(pol.id) };
+  else base = { head: 'Vigilando ' + svcName(pol.servicioId), meta: 'servicioId ' + pol.servicioId, glyph: '✓', color: C.blue, text: (s.modo === 'testnet' ? 'Cobertura on-chain activa. ' : 'Cobertura simulada activa. ') + 'Pago previsto: ' + mon(s.indemnizacion) + ', sujeto a ventana y tope del evento.', url: explorerLink(pol.buyHash), linkLabel: pol.buyHash ? 'Ver póliza on-chain' : '' };
   const caja: Caja = { meta: '', hasBar: false, barPct: '0%', url: '', linkLabel: '', actionLabel: '', action: null, ...base };
-  const canClaim = active && !!s.caidaReportada && !s.agenteActivo && sinceRep >= R;
 
   const hoy = new Date(now).toDateString();
   const todays = s.eventos.filter((e) => new Date(e.timestamp).toDateString() === hoy);
   const activas = s.polizas.filter((p) => p.estado === 0 && p.fin > now).length;
-  const expo = activas * s.indemnizacion;
+  const expo = s.exposicionContrato ?? activas * s.indemnizacion;
   const pct = (a: number, b: number) => (b > 0 ? Math.max(0, Math.min(100, Math.round(a / b * 100))) : 0);
 
   const alerta = !!pol && active && (s.exchangeCaido || !!s.caidaReportada);
   const agentMsgs = mensajes.filter((m) => m.role === 'agent').length;
   const unread = chatOpen ? 0 : Math.max(0, agentMsgs - seen);
-  const agText = s.agenteActivo ? 'En línea · vigilando ' + svcName(pol && active ? pol.servicioId : servicio) : 'Apagado · tus fondos siguen en el contrato';
+  const agText = 'Gemini · cotizaciones';
 
   const ocultaPoliza = mtab !== 'poliza';
   const ocultaPool = mtab !== 'pool';
@@ -178,23 +201,36 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
   return (
     <>
       <div className={`mx-auto flex max-w-[1320px] flex-col p-[clamp(14px,3vw,36px)] max-[759px]:pb-[calc(110px_+_env(safe-area-inset-bottom))] ${gap}`}>
-        <AppHeader demo={demo} onToggleDemo={() => setDemo((d) => !d)} account={wallet.account} onConnect={() => { wallet.connect(); }} />
+        <AppHeader demo={demo} onToggleDemo={() => setDemo((d) => !d)} account={s.cuentaDemo} modo={s.modo} />
+        <div role="status" className="rounded-[20px] bg-white px-5 py-3 text-[14px]">
+          {loading ? 'Conectando con el backend…' : stateError ? 'No se pudo actualizar: ' + stateError : s.modo === 'testnet' ? 'Monad Testnet · saldos y pólizas on-chain · mock de caída local' : 'Backend conectado · compras y saldos simulados'}
+          {stateError && <button type="button" className="ml-3 underline" onClick={() => void refresh()}>Reintentar</button>}
+        </div>
+        {s.modo === 'testnet' && !s.autorizado && <form onSubmit={(event) => { event.preventDefault(); void unlock(); }} className="flex flex-wrap items-end gap-3 rounded-[20px] bg-white p-5">
+          <label className="flex flex-1 flex-col gap-2 text-[14px]">Token de acceso de demo
+            <input type="password" autoComplete="off" value={accessToken} onChange={(event) => setAccessToken(event.target.value)} className="rounded border border-line p-3" />
+          </label>
+          <button type="submit" disabled={accessBusy || !accessToken} className="rounded bg-brand px-5 py-3 text-white disabled:opacity-40">{accessBusy ? 'Autorizando…' : 'Habilitar transacciones'}</button>
+        </form>}
+        {s.monitor?.error && <div role="alert" className="rounded-[20px] bg-white p-5 text-[14px]">Monitor: {s.monitor.error}. Revisa el proceso pnpm monitor.</div>}
+        {banner && <div role="alert" className="rounded-[20px] border border-line bg-white px-5 py-4"><strong>{banner.title}</strong><p className="mb-0">{banner.text}</p></div>}
 
         {demo && (
           <DemoLab
             exchangeCaido={s.exchangeCaido}
             servicioCaido={svcName(s.caidaSvc)}
             agenteActivo={s.agenteActivo}
-            agText={agText}
-            banner={banner}
+            agText={s.agenteActivo ? 'Pagos habilitados' : 'Pagos desactivados'}
+            banner={null}
+            disabled={controlBusy || !!stateError || loading || !s.autorizado}
             onTumbar={tumbar}
-            onAtacar={atacar}
-            onTormenta={() => acciones.tormenta()}
+            onAtacar={() => { if (pol) void control(() => acciones.atacar(pol.id), 'Intento inválido verificado'); }}
+            onTormenta={() => void storm()}
             onApagar={apagar}
           />
         )}
 
-        <div className={`grid grid-cols-[repeat(auto-fit,minmax(min(100%,420px),1fr))] items-stretch ${gap}`}>
+        {s.modo !== null && <div className={`grid grid-cols-[repeat(auto-fit,minmax(min(100%,420px),1fr))] items-stretch ${gap}`}>
           <CoberturaCard
             oculta={ocultaPoliza}
             titulo={pol ? 'Póliza #' + pol.id + ' · ' + svcName(pol.servicioId) + ' · ' + estadoOf(pol) : 'Cobertura'}
@@ -206,14 +242,14 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
               color: pol.estado === 1 ? C.green : C.orange
             } : null}
             caja={caja}
-            recientes={todays.slice(0, 4).map((e) => ({ titulo: evT(e), hora: hhmm(e.timestamp), url: EXPLORER + e.txHash }))}
+            recientes={todays.slice(0, 4).map((e) => ({ titulo: evT(e), hora: hhmm(e.timestamp), url: explorerLink(e.txHash) }))}
             recientesLabel={todays.length === 1 ? '1 evento hoy' : todays.length + ' eventos hoy'}
             mostrarRecientes={showRecent}
             onToggleRecientes={() => setShowRecent((x) => !x)}
             onCubrir={focusCover}
             puedeReclamar={canClaim}
             onReclamar={() => { if (canClaim && pol) claim(pol.id); }}
-            explorerUrl={s.eventos[0] ? EXPLORER + s.eventos[0].txHash : 'https://testnet.monadvision.com'}
+            explorerUrl={explorerLink(s.eventos[0]?.txHash)}
           />
 
           <div className={`flex min-w-0 flex-col ${gap} ${mtab === 'act' ? 'max-[759px]:hidden' : ''}`}>
@@ -230,8 +266,9 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
               primaLabel={mon(s.precioHora * horas)}
               indemLabel={mon(s.indemnizacion)}
               comprando={buying}
+              disabled={loading || !!stateError || !s.compraHabilitada || !s.autorizado}
               onComprar={() => buy(horas, undefined, servicio)}
-              comprarLabel={buying ? 'Confirma en MetaMask…' : wallet.account ? 'Pagar ' + mon(s.precioHora * horas) : 'Conectar y cubrir ' + svcName(servicio) + ' ' + horas + ' h'}
+              comprarLabel={buying ? 'Confirmando compra…' : !s.compraHabilitada ? 'Contrato no admite compras' : (s.modo === 'testnet' ? 'Comprar en testnet · ' : 'Comprar simulación · ') + mon(s.precioHora * horas)}
             />
             <PoolCard
               oculta={ocultaPool}
@@ -241,7 +278,7 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
                 { glyph: 'E', label: 'Exposición', value: mon(expo), sub: activas + ' activas · tope ' + s.topePorEvento + ' por evento', pct: pct(expo, s.fondo), color: C.purple }
               ]}
             />
-            {s.storm && <TormentaCard storm={s.storm} oculta={ocultaPool} />}
+            {(localStorm ?? s.storm) && <TormentaCard storm={(localStorm ?? s.storm)!} oculta={ocultaPool} />}
           </div>
 
           <div className={`col-span-full flex min-w-0 flex-col ${gap} ${mtab !== 'act' ? 'max-[759px]:hidden' : ''}`}>
@@ -257,7 +294,7 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
                   estadoLabel: e,
                   rango: hhmm(p.inicio) + ' → ' + hhmm(p.fin),
                   color: p.estado === 1 ? C.green : e === 'Expirada' ? C.gray : C.orange,
-                  amount: p.estado === 1 ? '+ ' + mon(s.indemnizacion) : '- ' + mon(s.precioHora * (p.horas || 1)),
+                  amount: p.estado === 1 ? '+ ' + mon(s.indemnizacion) : '- ' + mon(s.precioHora * (p.horas ?? (p.fin - p.inicio) / 3600e3)),
                   amountColor: p.estado === 1 ? 'oklch(0.5 0.14 150)' : C.ink2
                 };
               })}
@@ -267,26 +304,26 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
                 detalle: e.detalle || '',
                 hora: hms(e.timestamp),
                 dot: e.ok === false ? C.red : EV_DOT[e.tipo] || C.gray,
-                url: EXPLORER + e.txHash,
-                hashShort: short(e.txHash)
+                url: explorerLink(e.txHash),
+                hashShort: e.txHash ? short(e.txHash) : 'Simulado · sin transacción'
               }))}
             />
           </div>
-        </div>
+        </div>}
 
-        <p className="m-0 text-pretty text-center text-[13px] text-[#4a4a4a]">Prototipo en Monad Testnet. Caídas simuladas, primas no actuariales, no es un producto regulado.</p>
+        <p className="m-0 text-pretty text-center text-[13px] text-[#4a4a4a]">{s.modo === 'testnet' ? 'Compras, reportes y pagos en Monad Testnet. La caída del servicio se provoca en un mock local; MON de prueba sin valor real.' : 'Demo simulada con estado persistido y monitor local.'} Primas no actuariales.</p>
       </div>
 
       <ChatPanel
         abierto={chatOpen}
-        agenteActivo={s.agenteActivo}
+        agenteActivo={!loading && !stateError}
         agText={agText}
         mensajes={mensajes}
         escribiendo={typing}
         scrollRef={scrollRef}
         servicio={servicio}
-        precioHora={s.precioHora}
         comprando={buying}
+        disabled={loading || !!stateError}
         mensajeOcupado={busyMsg}
         input={input}
         onInput={setInput}

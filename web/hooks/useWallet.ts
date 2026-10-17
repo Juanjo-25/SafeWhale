@@ -5,6 +5,8 @@ import { BrowserProvider, Contract } from 'ethers';
 import { ABI } from './abi';
 import { fromChain, hex } from './formato';
 import { simulador } from './simulador';
+import { MONAD_TESTNET } from '../../shared/config';
+import { idPolizaComprada, leerParametrosContrato } from './contrato';
 
 interface Eip1193 {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -16,15 +18,7 @@ declare global {
 
 const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ?? '').trim();
 
-const MONAD_TESTNET = {
-  chainId: '0x279f', // 10143
-  chainName: 'Monad Testnet',
-  nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
-  rpcUrls: ['https://testnet-rpc.monad.xyz'],
-  blockExplorerUrls: ['https://testnet.monadvision.com']
-};
-
-export type ResultadoTx = { ok: true; hash: string; id?: number } | { ok: false; error: string };
+export type ResultadoTx = { ok: true; hash: string; id?: string } | { ok: false; error: string };
 
 type ErrorEthers = {
   data?: string;
@@ -36,7 +30,7 @@ type ErrorEthers = {
   code?: number;
 };
 
-/** Nombre del custom error del contrato (p. ej. "HorasInvalidas") o el mensaje de ethers. */
+/** Nombre del custom error del contrato o el mensaje de ethers. */
 function errName(e: unknown, c?: Contract) {
   const err = e as ErrorEthers;
   if (err?.revert?.name) return err.revert.name;
@@ -63,15 +57,18 @@ export function useWallet(avisar: (texto: string) => void) {
   const cargarParametros = useCallback(async () => {
     try {
       const c = await contrato(false);
-      const [ph, ind, bono, pool, tope, mh, sm] = await Promise.all([
-        c.precioHora(), c.indemnizacion(), c.bonoAgente(), c.poolDisponible(), c.topePorEvento(), c.maxHoras(), c.stakeMinimo()
-      ]);
+      const p = await leerParametrosContrato(c);
       simulador.setParametros({
-        precioHora: fromChain(ph), indemnizacion: fromChain(ind), bono: fromChain(bono), bonoInicial: Math.max(fromChain(sm), fromChain(bono)),
-        fondo: fromChain(pool), fondoInicial: fromChain(pool), topePorEvento: Number(tope), maxHoras: Number(mh)
+        precioHora: fromChain(p.precioHora), indemnizacion: fromChain(p.indemnizacion),
+        bono: fromChain(p.bono), bonoInicial: Math.max(fromChain(p.stakeMinimo), fromChain(p.bono)),
+        fondo: fromChain(p.fondo), fondoInicial: fromChain(p.fondo),
+        topePorEvento: Number(p.topePorEvento), maxHoras: Number(p.maxHoras),
+        umbralSeg: Number(p.umbralSegundos), tiempoReclamoSeg: Number(p.tiempoReclamo),
       });
-    } catch { /* se quedan los parámetros por defecto */ }
-  }, [contrato]);
+    } catch {
+      avisar('No se pudieron cargar los parámetros del contrato. Revisa la red y la dirección configurada.');
+    }
+  }, [contrato, avisar]);
 
   const fijar = (acc: string) => { accountRef.current = acc; setAccount(acc); };
 
@@ -89,10 +86,12 @@ export function useWallet(avisar: (texto: string) => void) {
       try {
         await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: MONAD_TESTNET.chainId }] });
       } catch (e) {
-        if ((e as ErrorEthers).code === 4902) await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [MONAD_TESTNET] });
+        if ((e as ErrorEthers).code !== 4902) throw e;
+        const { id: _id, ...walletNetwork } = MONAD_TESTNET;
+        await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [walletNetwork] });
       }
       fijar(acc);
-      if (esReal()) cargarParametros();
+      if (esReal()) await cargarParametros();
       return acc;
     } catch (e) {
       avisar('No se conectó la wallet: ' + ((e as ErrorEthers)?.message || e));
@@ -108,16 +107,13 @@ export function useWallet(avisar: (texto: string) => void) {
       const value = (await c.precioHora()) * BigInt(horas);
       const tx = await c.buyCover(servicioId, horas, { value });
       const rc = await tx.wait();
-      const log = rc.logs
-        .map((l: { topics: string[]; data: string }) => { try { return c!.interface.parseLog(l); } catch { return null; } })
-        .find((l: { name: string } | null) => l && l.name === 'CoverComprada');
-      return { ok: true, hash: tx.hash, id: log ? Number(log.args.polizaId) : undefined };
+      return { ok: true, hash: tx.hash, id: idPolizaComprada(rc.logs, CONTRACT_ADDRESS) };
     } catch (e) {
       return { ok: false, error: errName(e, c) };
     }
   }, [contrato]);
 
-  const claimAgentFailure = useCallback(async (polizaId: number): Promise<ResultadoTx> => {
+  const claimAgentFailure = useCallback(async (polizaId: string | bigint): Promise<ResultadoTx> => {
     let c: Contract | undefined;
     try {
       c = await contrato(true);

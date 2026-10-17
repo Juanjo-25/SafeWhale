@@ -11,21 +11,46 @@
   "scripts": {
     "preinstall": "node --input-type=module -e \"if (!process.env.npm_config_user_agent?.startsWith('pnpm/')) { console.error('Usa pnpm install para este proyecto.'); process.exit(1); }\"",
     "dev": "node --import tsx monitor/serve-web.ts dev",
-    "build": "next build web",
+    "build": "pnpm build:api && pnpm build:web",
     "start": "node --import tsx monitor/serve-web.ts start",
     "env:init": "node --import tsx monitor/init-env.ts",
     "check:env": "node --import tsx monitor/check-env.ts",
     "check:env:testnet": "node --import tsx monitor/check-env.ts testnet",
     "check:env:gemini": "node --import tsx monitor/check-env.ts gemini",
+    "check:db": "node --conditions=react-server --import tsx monitor/check-db.ts",
+    "db:import": "node --conditions=react-server --import tsx monitor/import-db.ts",
+    "db:secure": "node --conditions=react-server --import tsx monitor/secure-db.ts",
+    "db:migrate": "node --conditions=react-server --import tsx monitor/migrate-db.ts",
+    "db:backup": "node --conditions=react-server --import tsx monitor/backup-db.ts",
+    "db:restore": "node --conditions=react-server --import tsx monitor/restore-db.ts",
+    "db:verify-backup": "node --conditions=react-server --import tsx monitor/verify-backup.ts",
+    "check:demo": "node --conditions=react-server --import tsx monitor/check-demo.ts",
+    "test:database": "node --conditions=react-server --import tsx --test web/lib/postgres-store.test.ts",
     "typecheck:backend": "tsc --project tsconfig.backend.json --noEmit",
     "test:backend": "node --conditions=react-server --import tsx --test web/lib/*.test.ts",
-    "check:backend": "pnpm check:env && pnpm typecheck:backend && pnpm test:backend"
+    "check:backend": "pnpm check:env && pnpm typecheck:backend && pnpm test:backend",
+    "typecheck:web": "tsc --project web/tsconfig.json --noEmit",
+    "test:web": "node --import tsx --test web/hooks/*.test.ts",
+    "check:web": "pnpm typecheck:web && pnpm test:web",
+    "compile:contracts": "node contracts/compile.mjs",
+    "test:contracts": "node --import tsx --test contracts/*.test.mjs",
+    "monitor": "node --conditions=react-server --import tsx monitor/monitor.ts",
+    "monitor:once": "node --conditions=react-server --import tsx monitor/monitor.ts --once",
+    "wallets:init": "node --import tsx monitor/wallets-init.ts",
+    "deploy:testnet": "node --conditions=react-server --import tsx monitor/deploy-testnet.ts",
+    "check:chain": "node --conditions=react-server --import tsx monitor/check-chain.ts",
+    "smoke:testnet": "node --import tsx monitor/smoke-testnet.ts",
+    "wallets:balances": "node --conditions=react-server --import tsx monitor/balances.ts",
+    "build:api": "next build api --webpack",
+    "build:web": "next build web --webpack",
+    "monitor:cloud": "node --conditions=react-server --import tsx monitor/cloud.ts"
   },
   "dependencies": {
     "@google/genai": "2.30.0",
     "@next/env": "16.4.2",
     "ethers": "6.17.0",
     "next": "16.4.2",
+    "pg": "8.23.1",
     "proper-lockfile": "4.1.2",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -34,14 +59,25 @@
   },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
     "@types/proper-lockfile": "4.1.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "autoprefixer": "10.4.21",
+    "ganache": "7.9.2",
+    "postcss": "8.5.6",
+    "solc": "0.8.34",
+    "tailwindcss": "3.4.19",
     "tsx": "4.23.15",
     "typescript": "5.9.3"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"],
-    "ignoredBuiltDependencies": ["@google/genai", "protobufjs"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
+    "ignoredBuiltDependencies": [
+      "@google/genai",
+      "protobufjs"
+    ]
   }
 }

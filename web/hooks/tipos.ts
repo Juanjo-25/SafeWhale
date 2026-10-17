@@ -1,7 +1,7 @@
 // Forma de GET /api/estado más los parámetros del contrato y el estado local de la caída.
 
 export interface Poliza {
-  id: number;
+  id: string | number;
   dueno: string;
   servicioId: number;
   inicio: number; // ms
@@ -18,8 +18,9 @@ export type TipoEvento = 'CoverComprada' | 'CaidaReportada' | 'Pagado' | 'Reclam
 
 export interface Evento {
   tipo: TipoEvento | string;
-  polizaId?: number;
-  txHash: string;
+  polizaId?: string | number | null;
+  servicioId?: number;
+  txHash: string | null;
   timestamp: number; // ms
   ok: boolean;
   motivo?: string;
@@ -65,4 +66,6 @@ export interface RespuestaAgente {
   quote?: boolean;
   horas?: number;
   svc?: number;
+  prima?: string;
+  pagoFijo?: string;
 }

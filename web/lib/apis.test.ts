@@ -6,16 +6,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { parseEther } from "ethers";
-import { POST as buy } from "../app/api/comprar/route.ts";
-import { POST as drop } from "../app/api/tumbar/route.ts";
-import { POST as stop } from "../app/api/apagar-agente/route.ts";
-import { GET as exchange } from "../app/api/exchange-mock/route.ts";
-import { GET as state } from "../app/api/estado/route.ts";
-import { GET as health } from "../app/api/health/route.ts";
+import { POST as buy } from "../../api/app/api/comprar/route.ts";
+import { POST as drop } from "../../api/app/api/tumbar/route.ts";
+import { POST as stop } from "../../api/app/api/apagar-agente/route.ts";
+import { POST as restore } from '../../api/app/api/restaurar/route.ts';
+import { GET as exchangeRoute } from "../../api/app/api/exchange-mock/route.ts";
+import { GET as stateRoute } from "../../api/app/api/estado/route.ts";
+import { GET as health } from "../../api/app/api/health/route.ts";
 import { readSimulationSnapshot } from "./state.ts";
 
 const token = "token-sintetico-para-pruebas-000000000";
 const input = { servicioId: 1, horas: 4 };
+
+function exchange(request = new Request('http://localhost/api/exchange-mock')) {
+  return exchangeRoute(request);
+}
+function state() { return stateRoute(new Request('http://localhost/api/estado')); }
 
 async function fixture(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "downtime-apis-"));
@@ -113,12 +119,12 @@ test("reutilizar una clave con otro body o acción devuelve conflicto", async (t
   assert.equal(snapshot.exchangeCaido, false);
 });
 
-test("todas las acciones mutantes exigen autorización y una clave de idempotencia", async (t) => {
+test("las acciones rechazan otros orígenes y conservan la clave de idempotencia", async (t) => {
   const file = await fixture(t);
   for (const [action, body] of [[buy, input], [drop, { servicioId: 1 }], [stop, {}]] as const) {
-    const unauthorized = await action(request(body, randomUUID(), { Authorization: "Bearer incorrecto" }));
-    assert.equal(unauthorized.status, 401);
-    assert.equal((await unauthorized.json()).error.codigo, "UNAUTHORIZED");
+    const unauthorized = await action(request(body, randomUUID(), { Origin: "https://otro.example" }));
+    assert.equal(unauthorized.status, 403);
+    assert.equal((await unauthorized.json()).error.codigo, "ORIGIN_INVALID");
     const noKey = await action(request(body, ""));
     assert.equal(noKey.status, 400);
     assert.equal((await noKey.json()).error.codigo, "IDEMPOTENCY_KEY_INVALID");
@@ -132,7 +138,7 @@ test("todas las acciones mutantes exigen autorización y una clave de idempotenc
 test("rechaza servicios, horas y campos de firma elegidos por el cliente sin modificar balances", async (t) => {
   const file = await fixture(t);
   for (const body of [
-    { ...input, servicioId: 2 }, { ...input, horas: 0 }, { ...input, horas: 25 },
+    { ...input, servicioId: 3 }, { ...input, horas: 0 }, { ...input, horas: 25 },
     { ...input, horas: 1.5 }, { ...input, horas: "4" },
     { ...input, dueno: "0x0000000000000000000000000000000000000002" },
     { ...input, prima: "0.00001" },
@@ -171,7 +177,7 @@ test("tumbar cambia el mock a 503, conserva el inicio y bloquea nuevas compras",
   const snapshot = await readSimulationSnapshot(file);
   assert.equal(snapshot.polizas.length, 1);
   assert.equal(snapshot.fondo, "1.004");
-  assert.equal(snapshot.eventos.filter((entry) => entry.tipo === "ExchangeCaido").length, 1);
+  assert.equal(snapshot.eventos.filter((entry) => entry.tipo === "ServicioCaido").length, 1);
   assert.ok(!snapshot.eventos.some((entry) => ["Pagado", "CaidaReportada"].includes(entry.tipo)));
 });
 
@@ -193,20 +199,46 @@ test("apagar detiene el interruptor de payouts sin deshabilitar la API ni borrar
   assert.equal(snapshot.eventos.filter((entry) => entry.tipo === "AgenteApagado").length, 1);
 });
 
-test("el máximo de pólizas cuenta solo las activas y no reutiliza IDs anteriores", async (t) => {
+test('Binance y Stripe tienen compras y caídas independientes; restaurar conserva las pólizas', async (t) => {
+  const file = await fixture(t);
+  const stripe = { servicioId: 2, horas: 4 };
+  const purchase = await (await buy(request(stripe))).json();
+  assert.equal(purchase.poliza.servicioId, 2);
+  assert.equal((await drop(request({ servicioId: 1 }))).status, 200);
+  assert.equal((await buy(request(input))).status, 409);
+  assert.equal((await buy(request(stripe))).status, 201);
+  const stripeMock = () => exchange(new Request('http://localhost/api/exchange-mock?servicioId=2'));
+  assert.equal((await stripeMock()).status, 200);
+  assert.equal((await drop(request({ servicioId: 2 }))).status, 200);
+  assert.equal((await stripeMock()).status, 503);
+  const key = randomUUID();
+  const restored = await (await restore(request({ servicioId: 2 }, key))).json();
+  assert.deepEqual(await (await restore(request({ servicioId: 2 }, key))).json(), restored);
+  assert.equal((await stripeMock()).status, 200);
+  assert.equal((await exchange()).status, 503);
+  const snapshot = await readSimulationSnapshot(file);
+  assert.equal(snapshot.polizas.length, 2);
+  assert.equal(snapshot.servicios[1].caido, true);
+  assert.equal(snapshot.servicios[2].caido, false);
+  assert.equal(snapshot.eventos.filter((event) => event.tipo === 'ServicioRestaurado' && event.servicioId === 2).length, 1);
+  assert.ok(snapshot.eventos.every((event) => event.txHash === null));
+  assert.equal((await exchange(new Request('http://localhost/api/exchange-mock?servicioId=3'))).status, 400);
+});
+
+test("el máximo cuenta las reservas pendientes y no reutiliza IDs anteriores", async (t) => {
   const file = await fixture(t);
   const snapshot = await readSimulationSnapshot(file);
   const now = Math.floor(Date.now() / 1000);
   snapshot.polizas = Array.from({ length: 50 }, (_, index) => ({
     id: String(index + 1), dueno: "0x0000000000000000000000000000000000000001", servicioId: 1,
-    inicio: now - 10, fin: now + 3600, estado: "Activa",
+    inicio: now - 3600, fin: now + 3600, estado: "Activa",
   }));
   await writeFile(file, JSON.stringify(snapshot));
   const rejected = await buy(request(input));
   assert.equal(rejected.status, 409);
   assert.equal((await rejected.json()).error.codigo, "POLICY_LIMIT");
   assert.equal((await readSimulationSnapshot(file)).fondo, "1.000");
-  snapshot.polizas[0].fin = now - 1;
+  snapshot.polizas[0].fin = now - 121;
   await writeFile(file, JSON.stringify(snapshot));
   const accepted = await buy(request(input));
   assert.equal(accepted.status, 201);

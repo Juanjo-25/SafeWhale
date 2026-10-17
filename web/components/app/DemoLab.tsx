@@ -13,14 +13,16 @@ interface Props {
   onAtacar: () => void;
   onTormenta: () => void;
   onApagar: () => void;
+  disabled: boolean;
 }
 
-function BotonLab({ glifo, color, label, sub, onClick }: { glifo: string; color?: string; label: string; sub: string; onClick: () => void }) {
+function BotonLab({ glifo, color, label, sub, onClick, disabled }: { glifo: string; color?: string; label: string; sub: string; onClick: () => void; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-[110px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[4px] border border-line bg-white p-[14px] transition duration-150 hover:bg-[#fafafa] active:scale-[0.98]"
+      disabled={disabled}
+      className="flex min-h-[110px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[4px] border border-line bg-white p-[14px] transition duration-150 hover:bg-[#fafafa] active:scale-[0.98] disabled:cursor-default disabled:opacity-40"
     >
       <span className="text-[22px] leading-none" style={{ color }}>{glifo}</span>
       <span className="text-[14px] font-medium">{label}</span>
@@ -37,7 +39,7 @@ function Pastilla({ dot, texto }: { dot: string; texto: string }) {
   );
 }
 
-export function DemoLab({ exchangeCaido, servicioCaido, agenteActivo, agText, banner, onTumbar, onAtacar, onTormenta, onApagar }: Props) {
+export function DemoLab({ exchangeCaido, servicioCaido, agenteActivo, agText, banner, onTumbar, onAtacar, onTormenta, onApagar, disabled }: Props) {
   return (
     <section aria-label="Laboratorio de demo" className="flex flex-col gap-4 rounded-[28px] bg-white p-5 shadow-card">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -48,10 +50,10 @@ export function DemoLab({ exchangeCaido, servicioCaido, agenteActivo, agText, ba
         </div>
       </div>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,150px),1fr))] gap-[10px]">
-        <BotonLab glifo="↓" color={C.red} label={exchangeCaido ? 'Restaurar servicio' : 'Tumbar servicio'} sub={exchangeCaido ? 'Vuelve a responder' : 'Mock: los monitores dejan de recibir respuesta'} onClick={onTumbar} />
-        <BotonLab glifo="×" label="Atacar al agente" sub="Pago inválido, debe revertir" onClick={onAtacar} />
-        <BotonLab glifo="⁂" color={C.blue} label="Modo Tormenta" sub="30 pagos en paralelo" onClick={onTormenta} />
-        <BotonLab glifo="○" label={agenteActivo ? 'Apagar agente' : 'Encender agente'} sub={agenteActivo ? 'Prueba el reclamo por bono' : 'Vuelve el pago automático'} onClick={onApagar} />
+        <BotonLab glifo="↓" color={C.red} label={exchangeCaido ? 'Restaurar servicio' : 'Tumbar servicio'} sub={exchangeCaido ? 'Recupera el mock local' : 'Activa una caída del mock'} onClick={onTumbar} disabled={disabled} />
+        <BotonLab glifo="×" label="Atacar al agente" sub="Comprueba un payout inválido" onClick={onAtacar} disabled={disabled} />
+        <BotonLab glifo="⁂" color={C.blue} label="Modo Tormenta" sub="Hasta 30 pagos con receipt" onClick={onTormenta} disabled={disabled} />
+        <BotonLab glifo="○" label={agenteActivo ? 'Apagar pagos' : 'Habilitar pagos'} sub={agenteActivo ? 'El monitor sigue reportando' : 'Reactiva payouts del monitor'} onClick={onApagar} disabled={disabled} />
       </div>
       {banner && (
         <div role="status" aria-live="polite" className="flex items-start gap-3 rounded-[4px] border border-line px-4 py-[14px]">

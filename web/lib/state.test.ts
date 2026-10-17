@@ -38,6 +38,18 @@ test("un JSON corrupto falla sin borrar ni reiniciar el estado", async (t) => {
   assert.equal(await readFile(file, "utf8"), corrupted);
 });
 
+test('el estado anterior se conserva y se interpreta como Binance sin cambiar el archivo', async (t) => {
+  const { file } = await fixture(t);
+  const snapshot = await readSimulationSnapshot(file);
+  const { servicios: _services, ...legacy } = snapshot;
+  const saved = JSON.stringify({ ...legacy, exchangeCaido: true, caidaIniciadaEn: 123 });
+  await writeFile(file, saved);
+  const reloaded = await readSimulationSnapshot(file);
+  assert.deepEqual(reloaded.servicios[1], { caido: true, caidaIniciadaEn: 123 });
+  assert.deepEqual(reloaded.servicios[2], { caido: false, caidaIniciadaEn: null });
+  assert.equal(await readFile(file, 'utf8'), saved);
+});
+
 test("rechaza montos inválidos, IDs duplicados y hashes que aparenten transacciones reales", async (t) => {
   const { file } = await fixture(t);
   const snapshot = await readSimulationSnapshot(file);

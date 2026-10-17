@@ -14,6 +14,7 @@ interface Props {
   primaLabel: string;
   indemLabel: string;
   comprando: boolean;
+  disabled: boolean;
   onComprar: () => void;
   comprarLabel: string;
 }
@@ -24,7 +25,7 @@ export function CompraCard(p: Props) {
       <div className="flex flex-col gap-2">
         <span className="text-[14px]">Servicio del que dependes</span>
         <div role="radiogroup" aria-label="Servicio" className="flex flex-wrap gap-2">
-          {SVCS.map((x) => {
+          {SVCS.filter((x) => x.id === 1).map((x) => {
             const on = p.servicio === x.id;
             return (
               <button
@@ -70,8 +71,8 @@ export function CompraCard(p: Props) {
       <button
         type="button"
         onClick={p.onComprar}
-        disabled={p.comprando}
-        className="h-[52px] cursor-pointer rounded-[4px] border-0 bg-brand text-[16px] font-medium text-white transition duration-150 hover:bg-brand-hover active:scale-[0.98]"
+        disabled={p.comprando || p.disabled}
+        className="h-[52px] cursor-pointer rounded-[4px] border-0 bg-brand text-[16px] font-medium text-white transition duration-150 hover:bg-brand-hover active:scale-[0.98] disabled:cursor-default disabled:opacity-50"
       >
         {p.comprarLabel}
       </button>

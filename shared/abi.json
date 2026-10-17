@@ -1,0 +1,1061 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_agent",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_precioHora",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_indemnizacion",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_stakeMinimo",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_carencia",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_tiempoReclamo",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_umbralSegundos",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_topePorEvento",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_maxHoras",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_plazoReporte",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "BonoInsuficiente",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CaidaBajoUmbral",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CaidaYaReportada",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DerechoPendiente",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DuracionInvalida",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EsperaPendiente",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EvidenciaInvalida",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FondoInsuficiente",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FueraDeVentana",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LimitePolizas",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoEsDueno",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ParametrosInvalidos",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PolizaInvalida",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PolizaSinReserva",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PolizaVigente",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PrimaIncorrecta",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Reentrada",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReporteFueraDePlazo",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReporteInvalido",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ServicioInvalido",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SinCaida",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SoloAgent",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SoloOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TopeEvento",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TransferenciaFallida",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "YaPagada",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "agente",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "monto",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "bonoTotal",
+        "type": "uint256"
+      }
+    ],
+    "name": "BonoDepositado",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "destinatario",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "monto",
+        "type": "uint256"
+      }
+    ],
+    "name": "BonoRetirado",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "caidaId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "servicioId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "inicio",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "reportadoEn",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "duracionSegundos",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "evidenciaHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "CaidaReportada",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "polizaId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "dueno",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "servicioId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "inicio",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "fin",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "prima",
+        "type": "uint256"
+      }
+    ],
+    "name": "CoverComprada",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "emisor",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "monto",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "fondoTotal",
+        "type": "uint256"
+      }
+    ],
+    "name": "FondoDepositado",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "destinatario",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "monto",
+        "type": "uint256"
+      }
+    ],
+    "name": "FondoRetirado",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "polizaId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "dueno",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "monto",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "caidaId",
+        "type": "uint256"
+      }
+    ],
+    "name": "Pagado",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "polizaId",
+        "type": "uint256"
+      }
+    ],
+    "name": "PolizaExpirada",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "polizaId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "dueno",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "monto",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "caidaId",
+        "type": "uint256"
+      }
+    ],
+    "name": "Reclamado",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "MAX_POLIZAS_CON_RESERVA",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SERVICIO_DEMO",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "agent",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "bondBalance",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "bonoAgente",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "servicioId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "horas",
+        "type": "uint256"
+      }
+    ],
+    "name": "buyCover",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "polizaId",
+        "type": "uint256"
+      }
+    ],
+    "name": "caidaPagable",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "carencia",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "polizaId",
+        "type": "uint256"
+      }
+    ],
+    "name": "claimAgentFailure",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "polizaId",
+        "type": "uint256"
+      }
+    ],
+    "name": "expirar",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "exposicionTotal",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "fund",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "fundBalance",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "servicioId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getOutage",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "servicioId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "inicio",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "reportadoEn",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "duracionSegundos",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "evidenciaHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "pagosRealizados",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct DowntimeCover.Caida",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getPolicies",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "dueno",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "servicioId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "inicio",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "fin",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum DowntimeCover.EstadoPoliza",
+            "name": "estado",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct DowntimeCover.Poliza[]",
+        "name": "lista",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "polizaId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getPolicy",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "dueno",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "servicioId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "inicio",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "fin",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum DowntimeCover.EstadoPoliza",
+            "name": "estado",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct DowntimeCover.Poliza",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "indemnizacion",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "desde",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "cantidad",
+        "type": "uint256"
+      }
+    ],
+    "name": "listarPolizas",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "dueno",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "servicioId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "inicio",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "fin",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum DowntimeCover.EstadoPoliza",
+            "name": "estado",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct DowntimeCover.Poliza[]",
+        "name": "lista",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxHoras",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "obtenerBalanceContrato",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "polizaId",
+        "type": "uint256"
+      }
+    ],
+    "name": "payout",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "plazoReporte",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "precioHora",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "servicioId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "inicioCaida",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "duracionSegundos",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "evidenciaHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "reportOutage",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "caidaId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "monto",
+        "type": "uint256"
+      }
+    ],
+    "name": "retirar",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "monto",
+        "type": "uint256"
+      }
+    ],
+    "name": "retirarBono",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "stakeBond",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "stakeMinimo",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "tiempoReclamo",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "topePorEvento",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalCaidas",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalPolizas",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "umbralSegundos",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

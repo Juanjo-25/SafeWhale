@@ -8,7 +8,7 @@ import { ApiError } from "./api.ts";
 import { parseEnvironment } from "./env-schema.ts";
 import { quoteSimulationCover } from "./contract.ts";
 import { readSimulationSnapshot, updateSimulationSnapshot } from "./state.ts";
-import { POST } from "../app/api/chat/route.ts";
+import { POST } from "../../api/app/api/chat/route.ts";
 
 const token = "token-sintetico-para-pruebas-000000000";
 const quoteCaller: ToolCaller = async () => ({ functionCalls: [{ name: "cotizarCobertura", args: { servicioId: 1, horas: 4 } }] });
@@ -62,7 +62,7 @@ test("rechaza herramientas peligrosas y argumentos manipulados sin ejecutar acci
 test("una caída durante la consulta impide proponer una compra", async (t) => {
   const env = await fixture(t);
   const result = await askAgent(env, "Quiero cuatro horas", async () => {
-    await updateSimulationSnapshot(env.STATE_FILE, (snapshot) => { snapshot.exchangeCaido = true; });
+    await updateSimulationSnapshot(env.STATE_FILE, (snapshot) => { snapshot.exchangeCaido = true; snapshot.servicios[1].caido = true; });
     return quoteCaller(env, "", new AbortController().signal);
   });
   assert.equal(result.compraPropuesta, null);
@@ -77,6 +77,20 @@ test("sin clave no llama al modelo ni presenta una respuesta simulada como IA", 
     called = true; return {};
   }), (error: unknown) => error instanceof ApiError && error.codigo === "GEMINI_NOT_CONFIGURED");
   assert.equal(called, false);
+});
+
+test('Gemini cotiza Stripe aunque Binance esté caído y conserva el servicio de la propuesta', async (t) => {
+  const env = await fixture(t);
+  await updateSimulationSnapshot(env.STATE_FILE, (snapshot) => {
+    snapshot.servicios[1].caido = true;
+    snapshot.exchangeCaido = true;
+  });
+  const result = await askAgent(env, 'Cubre Stripe por 4 horas', async () => ({
+    functionCalls: [{ name: 'cotizarCobertura', args: { servicioId: 2, horas: 4 } }],
+  }));
+  assert.equal(result.compraPropuesta?.servicioId, 2);
+  assert.match(result.mensaje, /Stripe/);
+  assert.equal((await readSimulationSnapshot(env.STATE_FILE)).polizas.length, 0);
 });
 
 test("errores del proveedor y cuota se devuelven sin revelar su mensaje privado", async (t) => {
@@ -134,7 +148,7 @@ test("el SDK no repite automáticamente peticiones cuando Google responde cuota 
   assert.equal(calls, 1);
 });
 
-test("la ruta valida autorización, mensaje y falta de clave sin requerir contrato", async (t) => {
+test("el chat local funciona sin token y valida origen, mensaje y falta de clave", async (t) => {
   const env = await fixture(t);
   const previous = process.env;
   process.env = { NODE_ENV: "test", BACKEND_MODE: "simulado", STATE_FILE: env.STATE_FILE, DEMO_API_TOKEN: token };
@@ -142,9 +156,12 @@ test("la ruta valida autorización, mensaje y falta de clave sin requerir contra
   const request = (mensaje: string, auth = true) => new Request("http://localhost/api/chat", { method: "POST",
     headers: { "Content-Type": "application/json", ...(auth ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ mensaje }),
   });
-  assert.equal((await POST(request("Cuatro horas", false))).status, 401);
+  const crossOrigin = new Request("http://localhost/api/chat", { method: "POST", headers: {
+    "Content-Type": "application/json", Origin: "https://otro.example",
+  }, body: JSON.stringify({ mensaje: "Cuatro horas" }) });
+  assert.equal((await POST(crossOrigin)).status, 403);
   assert.equal((await POST(request("   "))).status, 400);
-  const response = await POST(request("Cuatro horas"));
+  const response = await POST(request("Cuatro horas", false));
   assert.equal(response.status, 503);
   assert.equal(response.headers.get("cache-control"), "no-store");
   const body = await response.json();

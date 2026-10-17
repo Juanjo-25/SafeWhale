@@ -1,5 +1,6 @@
 import { getAddress, ZeroAddress } from "ethers";
 import { z } from "zod";
+import { MONAD_TESTNET } from '../../shared/config';
 
 // Este módulo es puro para poder validar sin leer archivos ni hacer llamadas de red.
 const optional = <T extends z.ZodType>(schema: T) =>
@@ -30,11 +31,25 @@ const rpcUrl = z.string().url().refine((value) => {
 });
 
 const environmentSchema = z.object({
+  STORAGE_BACKEND: z.enum(['file', 'supabase']).default('file'),
+  STATE_NAMESPACE: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/).default('demo'),
+  DATABASE_URL: optional(z.string().refine((value) => {
+    try {
+      const url = new URL(value);
+      if (!['postgres:', 'postgresql:'].includes(url.protocol) || !url.hostname || url.port === '6543') return false;
+      // Los bloqueos de sesión requieren conexión directa o Session pooler.
+      const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+      return local || url.searchParams.get('sslmode') === 'verify-full';
+    } catch { return false; }
+  })),
   BACKEND_MODE: z.enum(["simulado", "testnet"]).default("simulado"),
-  MONAD_CHAIN_ID: z.coerce.number().pipe(z.literal(10143)).default(10143),
-  MONAD_RPC_URL: rpcUrl.default("https://testnet-rpc.monad.xyz"),
+  MONAD_CHAIN_ID: z.coerce.number().pipe(z.literal(MONAD_TESTNET.id)).default(MONAD_TESTNET.id),
+  MONAD_RPC_URL: rpcUrl.default(MONAD_TESTNET.rpcUrls[0]),
   RPC_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(10000),
   CONTRACT_ADDRESS: optional(address),
+  CONTRACT_DEPLOY_BLOCK: optional(z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)),
+  OWNER_PRIVATE_KEY: optional(privateKey),
+  TX_WAIT_MS: z.coerce.number().int().min(1000).max(60000).default(45000),
   AGENT_PRIVATE_KEY: optional(privateKey),
   DEMO_USER_PRIVATE_KEY: optional(privateKey),
   GEMINI_API_KEY: optional(z.string().min(1).regex(/^\S+$/)),
@@ -48,6 +63,7 @@ const environmentSchema = z.object({
     }
   }).default("http://127.0.0.1:3001"),
   MONITOR_INTERVAL_MS: z.coerce.number().int().min(2000).max(60000).default(2000),
+  MONITOR_SOURCE: z.enum(['http', 'store']).default('http'),
   STATE_FILE: z.string().trim().min(1).default("../state.json"),
   DEMO_API_TOKEN: optional(z.string().min(32).regex(/^\S+$/)),
 });
@@ -69,8 +85,8 @@ export class EnvironmentError extends Error {
 export function requireCapability(env: BackendEnvironment, capability: Capability): void {
   const required: (keyof BackendEnvironment)[] = capability === "gemini"
     ? ["GEMINI_API_KEY"]
-    : ["CONTRACT_ADDRESS", "AGENT_PRIVATE_KEY", "DEMO_USER_PRIVATE_KEY", "DEMO_API_TOKEN"];
-  const missing = required.filter((key) => !env[key]);
+    : ["CONTRACT_ADDRESS", "CONTRACT_DEPLOY_BLOCK", "AGENT_PRIVATE_KEY", "DEMO_USER_PRIVATE_KEY", "DEMO_API_TOKEN"];
+  const missing = required.filter((key) => env[key] === undefined);
   if (missing.length) throw new EnvironmentError(missing);
 }
 
@@ -81,6 +97,7 @@ export function parseEnvironment(source: Record<string, unknown>): BackendEnviro
     throw new EnvironmentError(parsed.error.issues.map((issue) => String(issue.path[0] ?? "entorno")));
   }
   const env = parsed.data;
+  if (env.STORAGE_BACKEND === 'supabase' && !env.DATABASE_URL) throw new EnvironmentError(['DATABASE_URL']);
   if (env.AGENT_PRIVATE_KEY && env.DEMO_USER_PRIVATE_KEY &&
       env.AGENT_PRIVATE_KEY.toLowerCase() === env.DEMO_USER_PRIVATE_KEY.toLowerCase()) {
     throw new EnvironmentError(["AGENT_PRIVATE_KEY", "DEMO_USER_PRIVATE_KEY"]);
@@ -93,11 +110,13 @@ export function parseEnvironment(source: Record<string, unknown>): BackendEnviro
 export function configurationStatus(env: BackendEnvironment) {
   return {
     modo: env.BACKEND_MODE,
+    almacenamiento: env.STORAGE_BACKEND,
     chainId: env.MONAD_CHAIN_ID,
     configurado: {
-      testnet: Boolean(env.CONTRACT_ADDRESS && env.AGENT_PRIVATE_KEY && env.DEMO_USER_PRIVATE_KEY && env.DEMO_API_TOKEN),
+      testnet: Boolean(env.CONTRACT_ADDRESS && env.CONTRACT_DEPLOY_BLOCK !== undefined && env.AGENT_PRIVATE_KEY && env.DEMO_USER_PRIVATE_KEY && env.DEMO_API_TOKEN),
       gemini: Boolean(env.GEMINI_API_KEY),
-      controlesDemo: Boolean(env.DEMO_API_TOKEN),
+      controlesDemo: env.BACKEND_MODE === "simulado" || Boolean(env.DEMO_API_TOKEN),
+      supabase: Boolean(env.DATABASE_URL),
     },
   };
 }

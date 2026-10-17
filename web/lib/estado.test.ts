@@ -3,7 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { GET } from "../app/api/estado/route.ts";
+import { GET as stateRoute } from "../../api/app/api/estado/route.ts";
+function GET() { return stateRoute(new Request('http://localhost/api/estado')); }
 
 async function routeFixture(t: TestContext, extra: Partial<NodeJS.ProcessEnv> = {}) {
   const directory = await mkdtemp(join(tmpdir(), "downtime-estado-"));
@@ -22,9 +23,12 @@ test("GET devuelve el contrato de datos para P3 sin caché ni pólizas inventada
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), "no-store");
   assert.deepEqual(await response.json(), {
-    modo: "simulado", chainId: 10143, contrato: null,
+    modo: "simulado", chainId: 10143, contrato: null, autorizado: true,
     fondo: "1.000", bono: "0.500", agenteActivo: true, exchangeCaido: false,
-    polizas: [], eventos: [],
+    polizas: [], eventos: [], caidaIniciadaEn: null,
+    servicios: [{ id: 1, nombre: "Exchange Demo", tipo: "Exchange", caido: false, caidaIniciadaEn: null }, { id: 2, nombre: "Stripe", tipo: "Pagos", caido: false, caidaIniciadaEn: null }],
+    cuentaDemo: "0x0000000000000000000000000000000000000001",
+    parametros: { precioHora: "0.001", indemnizacion: "0.01", umbralSeg: 10, tiempoReclamoSeg: 30, topePorEvento: 30, maxHoras: 24 },
   });
 });
 
@@ -45,13 +49,14 @@ test("testnet nunca cae silenciosamente en una respuesta simulada", async (t) =>
   await routeFixture(t, {
     BACKEND_MODE: "testnet",
     CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
+    CONTRACT_DEPLOY_BLOCK: '0', MONAD_RPC_URL: 'http://127.0.0.1:1', RPC_TIMEOUT_MS: '1000',
     AGENT_PRIVATE_KEY: `0x${"1".padStart(64, "0")}`,
     DEMO_USER_PRIVATE_KEY: `0x${"2".padStart(64, "0")}`,
     DEMO_API_TOKEN: "token-sintetico-para-pruebas-000000000",
   });
   const response = await GET();
   assert.equal(response.status, 503);
-  assert.equal((await response.json()).error.codigo, "TESTNET_PENDING");
+  assert.ok(['RPC_UNAVAILABLE', 'CONTRACT_MISMATCH'].includes((await response.json()).error.codigo));
 });
 
 test("configuración inválida devuelve nombres de variables sin valores privados", async (t) => {

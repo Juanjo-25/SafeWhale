@@ -1,89 +1,53 @@
 'use client';
 
 import { useMemo } from 'react';
-import { responder } from './agenteSimulado';
-import { post, usaApi } from './api';
-import { hex } from './formato';
-import { simulador } from './simulador';
-import type { Wallet } from './useWallet';
-import type { MotivoRevert, Poliza, RespuestaAgente } from './tipos';
+import { FrontendApiError, post } from './api';
+import { mapPolicy } from './estado-api';
+import type { RespuestaAgente } from './tipos';
 
-const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-export type ResultadoCompra = { ok: true; poliza: Poliza } | { ok: false; error: string };
-
-/**
- * Acciones de la app. Sin API las resuelve el simulador; con NEXT_PUBLIC_API_BASE además hacen POST
- * a /api/<accion> (el estado real llega por el polling de useEstado). Con contrato configurado,
- * comprar y reclamar se firman en MetaMask.
- */
-export function useAcciones(wallet: Wallet) {
-  return useMemo(() => ({
-    async comprar(horas: number, servicioId: number, dueno: string): Promise<ResultadoCompra> {
-      let hash = hex(64);
-      let id = simulador.getEstado().nextId;
-      if (wallet.esReal()) {
-        const r = await wallet.buyCover(servicioId, horas);
-        if (!r.ok) return r;
-        hash = r.hash;
-        if (r.id != null) id = r.id;
-      } else if (usaApi) {
-        const r = await post<{ txHash?: string; polizaId?: number }>('comprar', { horas, servicioId });
-        if (r?.txHash) hash = r.txHash;
-        if (r?.polizaId) id = Number(r.polizaId);
-      } else {
-        await esperar(900);
-      }
-      return { ok: true, poliza: simulador.registrarCompra({ id, hash, horas, servicioId, dueno }) };
-    },
-
-    async reclamar(polizaId: number): Promise<{ ok: boolean; error?: string }> {
-      if (wallet.esReal()) {
-        const r = await wallet.claimAgentFailure(polizaId);
-        if (!r.ok) return r;
-        simulador.pagar([polizaId], 0, 'bono', r.hash);
-      } else if (usaApi) {
-        await post('reclamar', { polizaId });
-      } else {
-        await esperar(700);
-        simulador.pagar([polizaId], 0, 'bono');
-      }
-      return { ok: true };
-    },
-
-    tumbar(servicioActual: number) {
-      const r = simulador.tumbar(servicioActual);
-      post('tumbar', { caido: r.caido });
-      return r;
-    },
-
-    atacar(): MotivoRevert {
-      post('atacar', {});
-      return simulador.atacar();
-    },
-
-    apagarAgente() {
-      const activo = simulador.alternarAgente();
-      post('apagar-agente', { activo });
-      return activo;
-    },
-
-    tormenta() {
-      const st = simulador.getEstado().storm;
-      if (st && !st.end) return;
-      post('tormenta', {});
-      simulador.tormenta();
-    },
-
-    async chat(mensaje: string, servicio: number): Promise<RespuestaAgente> {
-      const s = simulador.getEstado();
-      const local = () => responder(mensaje, { maxHoras: s.maxHoras, servicio, reclamoSeg: s.tiempoReclamoSeg });
-      if (usaApi) {
-        const r = await post<{ respuesta?: string; propuesta?: { horas?: number } }>('chat', { mensaje });
-        return r && r.respuesta ? { text: r.respuesta, quote: !!r.propuesta, horas: r.propuesta?.horas || 4 } : local();
-      }
-      await esperar(650);
-      return local();
+export function createActions(refresh: () => Promise<void>, saved?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>) {
+  let storage = saved;
+  try { storage ??= typeof window !== 'undefined' ? window.sessionStorage : undefined; } catch { /* Webview sin almacenamiento. */ }
+  const pending = new Map<string, string>();
+  async function mutate<T>(path: string, body: unknown): Promise<T> {
+    const fingerprint = JSON.stringify({ path, body });
+    const storageKey = 'safewhale:pending:' + fingerprint;
+    let persisted: string | null = null;
+    try { persisted = storage?.getItem(storageKey) ?? null; } catch { /* Sigue disponible la memoria. */ }
+    const key = pending.get(fingerprint) ?? persisted ?? crypto.randomUUID();
+    pending.set(fingerprint, key);
+    try { storage?.setItem(storageKey, key); } catch { /* No almacenar tokens, solo claves de idempotencia. */ }
+    const clear = () => { pending.delete(fingerprint); try { storage?.removeItem(storageKey); } catch { /* Memoria limpiada. */ } };
+    try {
+      const result = await post<T>(path, body, key);
+      clear();
+      try { await refresh(); } catch { /* La mutación ya se confirmó; no comprar otra vez por un fallo de polling. */ }
+      return result;
+    } catch (error) {
+      if (error instanceof FrontendApiError && error.status >= 400 && error.status < 500) clear();
+      throw error;
     }
-  }), [wallet]);
+  }
+  return {
+    async comprar(horas: number, servicioId: number) {
+      const result = await mutate<{ poliza: unknown; modo: string; txHash: string | null }>('comprar', { horas, servicioId });
+      return { poliza: mapPolicy(result.poliza), modo: result.modo, txHash: result.txHash };
+    },
+    tumbar: (servicioId: number) => mutate('tumbar', { servicioId }),
+    restaurar: (servicioId: number) => mutate('restaurar', { servicioId }),
+    reclamar: (id: number | string) => mutate('reclamar', { polizaId: String(id) }),
+    atacar: (id: number | string) => mutate('atacar', { polizaId: String(id) }),
+    apagarAgente: (activo = false) => mutate('apagar-agente', { activo }),
+    tormenta: (ids: (number | string)[]) => mutate<{ duracionMs: number; resultados: { polizaId: string; ok: boolean; txHash: string | null; motivo: string | null }[] }>('tormenta', { polizaIds: ids.slice(0, 30).map(String) }),
+    async chat(mensaje: string): Promise<RespuestaAgente> {
+      const result = await post<{ mensaje: string; compraPropuesta: { horas: number; servicioId: number; prima: string; pagoFijo: string } | null }>('chat', { mensaje });
+      return { text: result.mensaje, quote: !!result.compraPropuesta, horas: result.compraPropuesta?.horas,
+        svc: result.compraPropuesta?.servicioId, prima: result.compraPropuesta?.prima, pagoFijo: result.compraPropuesta?.pagoFijo,
+      };
+    },
+  };
+}
+
+export function useAcciones(refresh: () => Promise<void>) {
+  return useMemo(() => createActions(refresh), [refresh]);
 }

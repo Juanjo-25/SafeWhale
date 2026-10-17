@@ -1,0 +1,33 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "web": {
+      "root": "web",
+      "framework": "nextjs",
+      "installCommand": "cd .. && pnpm install --frozen-lockfile",
+      "buildCommand": "cd .. && pnpm build:web",
+      "devCommand": "cd .. && pnpm exec next dev web --webpack --port $PORT",
+      "bindings": [
+        { "type": "service", "service": "api", "format": "url", "env": "API_URL" }
+      ]
+    },
+    "api": {
+      "root": "api",
+      "framework": "nextjs",
+      "installCommand": "cd .. && pnpm install --frozen-lockfile",
+      "buildCommand": "cd .. && pnpm build:api",
+      "devCommand": "cd .. && pnpm exec next dev api --webpack --port $PORT"
+    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": { "service": "web" } }
+  ],
+  "daemons": {
+    "monitor": {
+      "root": ".",
+      "entrypoint": "Dockerfile",
+      "instances": { "iad1": 1 },
+      "terminationGracePeriodSeconds": 180
+    }
+  }
+}

@@ -5,27 +5,28 @@
 import { apiUrl, usaApi } from './api';
 import { hex, mon, secs, short, svcName } from './formato';
 import type { Estado, Evento, MotivoRevert, Parametros, Poliza } from './tipos';
+import { DEMO_CONTRACT_PARAMETERS, DEMO_FUNDING, CONTRACT_LIMITS } from '../../shared/config';
 
 export const PARAMETROS: Parametros = {
-  precioHora: 0.01,
-  indemnizacion: 0.5,
-  umbralSeg: 10,
-  tiempoReclamoSeg: 15,
-  topePorEvento: 30,
-  maxHoras: 24
+  precioHora: Number(DEMO_CONTRACT_PARAMETERS.precioHora) / 1e18,
+  indemnizacion: Number(DEMO_CONTRACT_PARAMETERS.indemnizacion) / 1e18,
+  umbralSeg: Number(DEMO_CONTRACT_PARAMETERS.umbralSegundos),
+  tiempoReclamoSeg: Number(DEMO_CONTRACT_PARAMETERS.tiempoReclamo),
+  topePorEvento: Number(DEMO_CONTRACT_PARAMETERS.topePorEvento),
+  maxHoras: Number(DEMO_CONTRACT_PARAMETERS.maxHoras)
 };
 
 export const ESTADO_INICIAL: Estado = {
   ...PARAMETROS,
-  fondo: 25,
-  fondoInicial: 25,
-  bono: 2,
-  bonoInicial: 2,
+  fondo: Number(DEMO_FUNDING.fondo) / 1e18,
+  fondoInicial: Number(DEMO_FUNDING.fondo) / 1e18,
+  bono: Number(DEMO_FUNDING.bono) / 1e18,
+  bonoInicial: Number(DEMO_FUNDING.bono) / 1e18,
   agenteActivo: true,
   exchangeCaido: false,
   polizas: [],
   eventos: [],
-  caidaSvc: 5,
+  caidaSvc: CONTRACT_LIMITS.servicioId,
   caidaInicio: null,
   caidaReportada: null,
   caidaId: 0,
@@ -139,7 +140,7 @@ class Simulador {
     }
   }
 
-  pagar(ids: number[], ms: number, via: 'agente' | 'bono', hash?: string) {
+  pagar(ids: (number | string)[], ms: number, via: 'agente' | 'bono', hash?: string) {
     hash = hash || hex(64);
     const n = ids.length;
     const ind = this.estado.indemnizacion;

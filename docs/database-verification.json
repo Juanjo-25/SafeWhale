@@ -1,0 +1,61 @@
+{
+  "checkedAt": "2026-10-17T22:27:54.292Z",
+  "scope": "Base de datos y preparación de la demo local",
+  "database": {
+    "provider": "Supabase",
+    "tls": "verify-full",
+    "limitedRuntimeRole": true,
+    "rowLevelSecurity": true,
+    "persistentEventHistory": true
+  },
+  "checks": {
+    "backendSuite": {
+      "passed": 68,
+      "failed": 0
+    },
+    "deploymentNamespace": {
+      "passed": 1,
+      "failed": 0
+    },
+    "frontend": {
+      "passed": 8,
+      "failed": 0
+    },
+    "liveSupabase": {
+      "passed": 9,
+      "failed": 0
+    },
+    "build": {
+      "api": true,
+      "web": true
+    }
+  },
+  "backup": {
+    "sha256": "15468d841afd2fa7101adcf2a2baa2a9a8aad577d71097e29cd48ffaeef64c65",
+    "documents": 2,
+    "events": 2,
+    "restorationVerified": true,
+    "temporaryNamespaceRemoved": true
+  },
+  "runtime": {
+    "healthHTTP": 200,
+    "stateHTTP": 200,
+    "mode": "testnet",
+    "purchaseAvailable": true,
+    "presentationEventAvailable": true,
+    "pendingTransactions": 0
+  },
+  "gemini": {
+    "http": 200,
+    "serviceId": 1,
+    "hours": 1,
+    "premiumMON": "0.001",
+    "purchaseExecuted": false
+  },
+  "limits": [
+    "Las pruebas de compra contra Supabase usaron simulación y namespaces temporales.",
+    "Las transacciones del contrato se probaron en EVM temporal; el evento de presentación sigue disponible.",
+    "El respaldo es local; no se configuró una copia externa automática.",
+    "No se certifica un despliegue público de los servicios."
+  ]
+}

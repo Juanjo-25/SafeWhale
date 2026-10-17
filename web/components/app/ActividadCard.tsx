@@ -1,4 +1,4 @@
-export interface FilaPoliza { id: number; horas: string; estadoLabel: string; rango: string; color: string; amount: string; amountColor: string }
+export interface FilaPoliza { id: string | number; horas: string; estadoLabel: string; rango: string; color: string; amount: string; amountColor: string }
 export interface FilaEvento { titulo: string; titleColor: string; detalle: string; hora: string; dot: string; url: string; hashShort: string }
 
 interface Props {
@@ -28,7 +28,7 @@ export function ActividadCard({ oculta, tab, onTab, polizas, eventos }: Props) {
     <section aria-label="Mis pólizas y eventos" className={`flex flex-auto flex-col rounded-[28px] bg-white px-[22px] pb-[10px] pt-2 shadow-card ${oculta ? 'max-[759px]:hidden' : ''}`}>
       <div role="tablist" className="flex gap-1 pb-[6px] pt-3">
         <Pestana activa={tab === 'pol'} onClick={() => onTab('pol')}>Mis pólizas</Pestana>
-        <Pestana activa={tab === 'ev'} onClick={() => onTab('ev')}>Eventos on-chain</Pestana>
+        <Pestana activa={tab === 'ev'} onClick={() => onTab('ev')}>Eventos</Pestana>
       </div>
       {tab === 'pol' && (
         <div className="flex flex-col">
@@ -47,9 +47,9 @@ export function ActividadCard({ oculta, tab, onTab, polizas, eventos }: Props) {
       )}
       {tab === 'ev' && (
         <div className="flex flex-col">
-          {!eventos.length && <span className="py-4 text-[15px] text-muted">Cada acción del contrato aparece aquí.</span>}
+          {!eventos.length && <span className="py-4 text-[15px] text-muted">Las acciones confirmadas por el backend aparecen aquí.</span>}
           {eventos.map((e, i) => (
-            <a key={i} href={e.url} target="_blank" rel="noopener" className="flex gap-[14px] border-t border-line-soft py-[14px] text-ink transition-opacity duration-150 hover:opacity-75">
+            <a key={i} href={e.url || undefined} target="_blank" rel="noopener" className="flex gap-[14px] border-t border-line-soft py-[14px] text-ink transition-opacity duration-150 hover:opacity-75">
               <span className="mt-[6px] h-[10px] w-[10px] flex-none rounded-full" style={{ background: e.dot }} />
               <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
                 <div className="flex justify-between gap-[10px]">
@@ -57,7 +57,7 @@ export function ActividadCard({ oculta, tab, onTab, polizas, eventos }: Props) {
                   <span className="whitespace-nowrap font-mono text-[12.5px] text-muted">{e.hora}</span>
                 </div>
                 <span className="text-pretty text-[13.5px] leading-[1.4] text-[#4a4a4a]">{e.detalle}</span>
-                <span className="font-mono text-[12.5px] text-[#8a8a8a]">{e.hashShort} ↗</span>
+                <span className="font-mono text-[12.5px] text-[#8a8a8a]">{e.hashShort}{e.url ? ' ↗' : ''}</span>
               </div>
             </a>
           ))}

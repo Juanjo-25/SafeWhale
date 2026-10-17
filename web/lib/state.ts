@@ -5,6 +5,13 @@ import { dirname, isAbsolute } from "node:path";
 import { getAddress, isAddress, ZeroAddress } from "ethers";
 import { z } from "zod";
 import lockfile from "proper-lockfile";
+import { DEMO_SERVICES, serviceIdSchema } from './services';
+import { MONAD_TESTNET, DEMO_FUNDING } from '../../shared/config';
+import { formatEther } from 'ethers';
+import { parseEnvironment, type BackendEnvironment } from './env-schema';
+import { withPostgresStore } from './postgres-store';
+import { StateError } from './state-error';
+export { StateError } from './state-error';
 
 const id = z.string().regex(/^(0|[1-9]\d*)$/);
 const money = z.string().regex(/^(0|[1-9]\d*)(\.\d{1,18})?$/);
@@ -27,6 +34,7 @@ const eventSchema = z.object({
   ok: z.boolean(),
   motivo: z.string().nullable(),
   origen: z.literal("simulado"),
+  servicioId: serviceIdSchema.optional(),
 });
 
 const mutationResultSchema = z.object({
@@ -40,6 +48,10 @@ const mutationResultSchema = z.object({
   agenteActivo: z.boolean().optional(),
   exchangeCaido: z.boolean().optional(),
   caidaDesde: timestamp.nullable().optional(),
+  servicioId: serviceIdSchema.optional(),
+  rechazado: z.boolean().optional(),
+  motivo: z.string().optional(),
+  resultados: z.array(z.object({ polizaId: z.string(), ok: z.boolean(), txHash: z.null(), motivo: z.string().nullable() })).optional(),
 });
 
 const idempotencySchema = z.object({
@@ -49,27 +61,29 @@ const idempotencySchema = z.object({
   resultado: mutationResultSchema,
 });
 
-const snapshotSchema = z.object({
+const serviceStateSchema = z.object({ caido: z.boolean(), caidaIniciadaEn: timestamp.nullable() });
+const outageSchema = z.object({ id: z.string(), inicio: timestamp, reportadoEn: timestamp,
+  duracionSegundos: z.number().int().nonnegative(), evidenciaHash: z.string(), pagosRealizados: z.number().int().nonnegative() });
+
+export const snapshotSchema = z.object({
   schemaVersion: z.literal(1),
   fondo: money,
   bono: money,
   agenteActivo: z.boolean(),
   exchangeCaido: z.boolean(),
   caidaIniciadaEn: timestamp.nullable().default(null),
+  servicios: z.object({ '1': serviceStateSchema, '2': serviceStateSchema }).optional(),
   polizas: z.array(policySchema).refine((policies) => new Set(policies.map((policy) => policy.id)).size === policies.length),
   eventos: z.array(eventSchema),
   idempotencia: z.array(idempotencySchema).default([]),
-});
+  caidas: z.partialRecord(z.enum(['1', '2']), outageSchema).default({}),
+}).transform((snapshot) => ({ ...snapshot, servicios: snapshot.servicios ?? {
+  '1': { caido: snapshot.exchangeCaido, caidaIniciadaEn: snapshot.caidaIniciadaEn },
+  '2': { caido: false, caidaIniciadaEn: null },
+} }));
 
 export type SimulationSnapshot = z.infer<typeof snapshotSchema>;
 export type SimulationMutationResult = z.infer<typeof mutationResultSchema>;
-
-export class StateError extends Error {
-  constructor(readonly codigo: string, mensaje: string) {
-    super(mensaje);
-    this.name = "StateError";
-  }
-}
 
 function hasCode(error: unknown, code: string): boolean {
   return error instanceof Error && "code" in error && error.code === code;
@@ -78,21 +92,26 @@ function hasCode(error: unknown, code: string): boolean {
 function initialSnapshot(): SimulationSnapshot {
   return {
     schemaVersion: 1,
-    fondo: "1.000",
-    bono: "0.500",
+    fondo: Number(formatEther(DEMO_FUNDING.fondo)).toFixed(3),
+    bono: Number(formatEther(DEMO_FUNDING.bono)).toFixed(3),
     agenteActivo: true,
     exchangeCaido: false,
     caidaIniciadaEn: null,
+    servicios: { '1': { caido: false, caidaIniciadaEn: null }, '2': { caido: false, caidaIniciadaEn: null } },
     polizas: [],
     eventos: [],
     idempotencia: [],
+    caidas: {},
   };
 }
 
 // Todas las mutaciones de API/monitor deben pasar por esta función. No mantener
 // el bloqueo mientras se llama a Gemini o a un RPC: aquí solo se modifica JSON.
-export async function updateSimulationSnapshot<T>(file: string, update: (snapshot: SimulationSnapshot) => T): Promise<T> {
-  await readSimulationSnapshot(file);
+export async function updateSimulationSnapshot<T>(file: string, update: (snapshot: SimulationSnapshot) => T,
+  env: BackendEnvironment = parseEnvironment(process.env)): Promise<T> {
+  if (env.STORAGE_BACKEND === 'supabase') return withPostgresStore(env, 'simulation', initialSnapshot,
+    (input) => snapshotSchema.parse(input), async (state, save) => { const result = update(state); await save(); return result; });
+  await readSimulationSnapshot(file, env);
   let compromised = false;
   let release: () => Promise<void>;
   try {
@@ -110,7 +129,7 @@ export async function updateSimulationSnapshot<T>(file: string, update: (snapsho
   const temporary = `${file}.${randomUUID()}.tmp`;
   let created = false;
   try {
-    const snapshot = await readSimulationSnapshot(file);
+    const snapshot = await readSimulationSnapshot(file, env);
     const result = update(snapshot);
     const parsed = snapshotSchema.safeParse(snapshot);
     if (!parsed.success) throw new StateError("STATE_INVALID", "El cambio de estado no es válido y no fue guardado.");
@@ -156,7 +175,9 @@ async function initializeSnapshot(file: string): Promise<void> {
   }
 }
 
-export async function readSimulationSnapshot(file: string): Promise<SimulationSnapshot> {
+export async function readSimulationSnapshot(file: string, env: BackendEnvironment = parseEnvironment(process.env)): Promise<SimulationSnapshot> {
+  if (env.STORAGE_BACKEND === 'supabase') return withPostgresStore(env, 'simulation', initialSnapshot,
+    (input) => snapshotSchema.parse(input), async (state) => state);
   if (!isAbsolute(file)) {
     throw new StateError("STATE_PATH_INVALID", "Inicia el backend con pnpm dev para resolver la ruta compartida del estado.");
   }
@@ -185,12 +206,13 @@ export async function readSimulationSnapshot(file: string): Promise<SimulationSn
 export function publicSimulationState(snapshot: SimulationSnapshot, now = Math.floor(Date.now() / 1000)) {
   return {
     modo: "simulado" as const,
-    chainId: 10143,
+    chainId: MONAD_TESTNET.id,
     contrato: null,
     fondo: snapshot.fondo,
     bono: snapshot.bono,
     agenteActivo: snapshot.agenteActivo,
     exchangeCaido: snapshot.exchangeCaido,
+    servicios: DEMO_SERVICES.map((service) => ({ ...service, ...snapshot.servicios[service.id] })),
     polizas: snapshot.polizas.map((policy) => ({
       ...policy,
       estado: policy.estado === "Activa" && policy.fin <= now ? "Expirada" as const : policy.estado,

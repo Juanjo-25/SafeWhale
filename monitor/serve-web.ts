@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { fileURLToPath } from 'node:url';
 import { EnvironmentError } from "../web/lib/env-schema.ts";
 import { loadBackendEnvironment, webDirectory } from "./load-env.ts";
 
@@ -27,13 +28,19 @@ try {
     stdio: "inherit",
     env: { ...process.env, STATE_FILE: stateFile },
   });
+  const monitor = spawn(process.execPath, ['--conditions=react-server', '--import', 'tsx',
+    fileURLToPath(new URL('./monitor.ts', import.meta.url))], {
+    stdio: 'inherit', env: { ...process.env, STATE_FILE: stateFile },
+  });
+  monitor.on('error', () => { console.error('No se pudo iniciar el monitor. Ejecuta pnpm monitor.'); });
+  monitor.on('exit', (code) => { if (code && !child.killed) console.error('El monitor se detuvo. Revisa pnpm monitor.'); });
   child.on("error", () => {
     console.error("No se pudo iniciar Next.js. Comprueba pnpm install y el puerto configurado.");
     process.exitCode = 1;
   });
-  child.on("exit", (code) => { process.exitCode = code ?? 1; });
-  process.on("SIGINT", () => { child.kill("SIGINT"); });
-  process.on("SIGTERM", () => { child.kill("SIGTERM"); });
+  child.on("exit", (code) => { monitor.kill('SIGTERM'); process.exitCode = code ?? 1; });
+  process.on("SIGINT", () => { child.kill("SIGINT"); monitor.kill('SIGINT'); });
+  process.on("SIGTERM", () => { child.kill("SIGTERM"); monitor.kill('SIGTERM'); });
 } catch (error) {
   console.error(error instanceof EnvironmentError ? error.message : "No se pudo iniciar el servidor local. Revisa la configuración.");
   process.exitCode = 1;

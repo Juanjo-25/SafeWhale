@@ -1,14 +1,11 @@
 export const EXPLORER = 'https://testnet.monadvision.com/tx/';
 
 export const SVCS = [
-  { id: 1, n: 'Stripe' },
-  { id: 2, n: 'AWS' },
-  { id: 3, n: 'Shopify' },
-  { id: 4, n: 'Mastercard' },
-  { id: 5, n: 'Wompi' }
+  { id: 1, n: 'Exchange Demo' },
+  { id: 2, n: 'Stripe' },
 ] as const;
 
-export const svcName = (id: number | undefined) => (SVCS.find((x) => x.id === Number(id)) || SVCS[4]).n;
+export const svcName = (id: number | undefined) => SVCS.find((service) => service.id === id)?.n ?? 'Servicio';
 
 export const hex = (n: number) => {
   let s = '0x';

@@ -1,0 +1,9 @@
+**/.env*
+!**/.env.example
+state.json*
+.pnpm-store
+**/*.tsbuildinfo
+.DS_Store
+supabase/.admin-connection.json
+supabase/.runtime-connection.json
+supabase/backups/

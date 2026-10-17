@@ -4,7 +4,7 @@ import { secs } from '@/hooks/formato';
 
 export function TormentaCard({ storm, oculta }: { storm: Tormenta; oculta: boolean }) {
   const pagadas = storm.paid.filter(Boolean).length;
-  const status = pagadas + '/30 · ' + (storm.end ? secs(storm.end - storm.start) : secs(performance.now() - storm.start));
+  const status = pagadas + '/' + storm.paid.length + ' · ' + (storm.end ? secs(storm.end - storm.start) : secs(performance.now() - storm.start));
   return (
     <section aria-label="Modo Tormenta" className={`flex flex-col gap-4 rounded-[28px] bg-white p-6 shadow-card ${oculta ? 'max-[759px]:hidden' : ''}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-[10px]">
@@ -20,7 +20,7 @@ export function TormentaCard({ storm, oculta }: { storm: Tormenta; oculta: boole
             >
               {i + 1}
             </span>
-            <span className="flex flex-1 items-center justify-center border-l border-white text-[13.5px]">{p ? 'pagada' : 'activa'}</span>
+            <span className="flex flex-1 items-center justify-center border-l border-white text-[13.5px]">{p ? 'pagada' : storm.end ? 'sin pagar' : 'pendiente'}</span>
           </div>
         ))}
       </div>

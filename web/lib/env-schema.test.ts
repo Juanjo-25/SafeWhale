@@ -8,6 +8,7 @@ const userKey = `0x${"2".padStart(64, "0")}`;
 const testnet = {
   BACKEND_MODE: "testnet",
   CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000001",
+  CONTRACT_DEPLOY_BLOCK: '0',
   AGENT_PRIVATE_KEY: agentKey,
   DEMO_USER_PRIVATE_KEY: userKey,
   DEMO_API_TOKEN: "token-sintetico-para-pruebas-000000000",
@@ -15,13 +16,14 @@ const testnet = {
 
 test("el modo simulado arranca con credenciales vacías sin declararlas disponibles", () => {
   const env = parseEnvironment({ CONTRACT_ADDRESS: "", AGENT_PRIVATE_KEY: "", DEMO_USER_PRIVATE_KEY: "", GEMINI_API_KEY: "", DEMO_API_TOKEN: "" });
-  assert.deepEqual(configurationStatus(env), { modo: "simulado", chainId: 10143, configurado: { testnet: false, gemini: false, controlesDemo: false } });
+  assert.deepEqual(configurationStatus(env), { modo: "simulado", almacenamiento: 'file', chainId: 10143,
+    configurado: { testnet: false, gemini: false, controlesDemo: true, supabase: false } });
 });
 
 test("testnet falla antes de habilitar firma si falta configuración", () => {
   assert.throws(() => parseEnvironment({ BACKEND_MODE: "testnet" }), (error: unknown) => {
     assert.ok(error instanceof EnvironmentError);
-    assert.deepEqual(error.variables, ["AGENT_PRIVATE_KEY", "CONTRACT_ADDRESS", "DEMO_API_TOKEN", "DEMO_USER_PRIVATE_KEY"]);
+    assert.deepEqual(error.variables, ["AGENT_PRIVATE_KEY", "CONTRACT_ADDRESS", "CONTRACT_DEPLOY_BLOCK", "DEMO_API_TOKEN", "DEMO_USER_PRIVATE_KEY"]);
     return true;
   });
 });
@@ -66,4 +68,17 @@ test("el estado público expone disponibilidad local y no valores secretos", () 
   for (const secret of [agentKey, userKey, testnet.DEMO_API_TOKEN, "clave-sintetica", "token=privado"]) {
     assert.ok(!serialized.includes(secret));
   }
+});
+
+test('Supabase exige conexión segura de sesión y nunca publica su contraseña', () => {
+  assert.throws(() => parseEnvironment({ STORAGE_BACKEND: 'supabase' }), EnvironmentError);
+  for (const url of ['https://db.example.com', 'postgresql://db.example.com/db',
+    'postgresql://db.example.com:6543/db?sslmode=verify-full']) {
+    assert.throws(() => parseEnvironment({ DATABASE_URL: url }), EnvironmentError);
+  }
+  const env = parseEnvironment({ STORAGE_BACKEND: 'supabase',
+    DATABASE_URL: 'postgresql://postgres:secreto-sintetico@db.example.com:5432/postgres?sslmode=verify-full' });
+  assert.equal(configurationStatus(env).configurado.supabase, true);
+  assert.ok(!JSON.stringify(configurationStatus(env)).includes('secreto-sintetico'));
+  assert.throws(() => parseEnvironment({ STATE_NAMESPACE: '../otra-demo' }), EnvironmentError);
 });

@@ -1,8 +1,5 @@
-import { simulationMutation } from "../../../lib/api";
-import { emptySchema, stopSimulationPayouts } from "../../../lib/contract";
-
-export const runtime = "nodejs";
-
-export function POST(request: Request) {
-  return simulationMutation(request, emptySchema, (env, key) => stopSimulationPayouts(env, key));
-}
+import { proxyBackend } from '../../../lib/service-proxy';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
+export function POST(request: Request) { return proxyBackend(request, 'apagar-agente'); }

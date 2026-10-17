@@ -3,9 +3,9 @@ import { C } from '../colores';
 import { mon, svcName } from '@/hooks/formato';
 import { Punto } from './Punto';
 
-export interface Mensaje { role: 'agent' | 'user'; text: string; quote?: boolean; horas?: number; svc?: number; done?: boolean }
+export interface Mensaje { role: 'agent' | 'user'; text: string; quote?: boolean; horas?: number; svc?: number; done?: boolean; prima?: string; pagoFijo?: string }
 
-const CHIPS = ['Cúbreme Wompi 8 horas', '¿Cómo me pagan?', '¿Puedes cubrir mi web?'];
+const CHIPS = ['Cubre Exchange Demo por 4 horas', 'Consulta el estado', 'Cubre Exchange Demo por 8 horas'];
 
 interface Props {
   abierto: boolean;
@@ -15,8 +15,8 @@ interface Props {
   escribiendo: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   servicio: number;
-  precioHora: number;
   comprando: boolean;
+  disabled: boolean;
   mensajeOcupado: number | null;
   input: string;
   onInput: (v: string) => void;
@@ -31,16 +31,16 @@ function Cotizacion({ m, i, p }: { m: Mensaje; i: number; p: Props }) {
     <div className="w-[min(100%,320px)] rounded-[4px] border border-line">
       <div className="flex items-center justify-between gap-2 border-b border-line px-[14px] py-3">
         <span className="text-[14px]">{m.horas} h · {svcName(m.svc || p.servicio)}</span>
-        <span className="font-mono text-[14px]">{mon(p.precioHora * (m.horas || 0))}</span>
+        <span className="font-mono text-[14px]">{mon(Number(m.prima))}</span>
       </div>
       <button
         type="button"
         onClick={() => p.onConfirmar(i)}
-        disabled={!!m.done || p.comprando}
+        disabled={!!m.done || p.comprando || p.disabled}
         className="h-[46px] w-full cursor-pointer border-0 bg-transparent px-[14px] text-left text-[15px] transition-colors duration-150 hover:bg-[#fafafa]"
         style={{ color: m.done ? C.green : C.orange }}
       >
-        {m.done ? 'Póliza comprada ✓' : ocupado ? 'Confirma en MetaMask…' : 'Confirmar y pagar'}
+        {m.done ? 'Póliza simulada registrada ✓' : ocupado ? 'Registrando compra…' : 'Confirmar compra simulada'}
       </button>
     </div>
   );
@@ -103,6 +103,7 @@ export function ChatPanel(p: Props) {
               key={label}
               type="button"
               onClick={() => p.onEnviar(label)}
+              disabled={p.disabled || p.escribiendo}
               className="h-9 flex-none cursor-pointer whitespace-nowrap rounded-full border-0 bg-soft px-[14px] text-[14px] transition duration-150 hover:bg-[#e9e9e9] active:scale-[0.97]"
             >
               {label}
@@ -118,12 +119,15 @@ export function ChatPanel(p: Props) {
             onKeyDown={(e) => { if (e.key === 'Enter') p.onEnviar(p.input); }}
             placeholder="Escríbele al agente…"
             autoComplete="off"
+            maxLength={1000}
+            disabled={p.disabled || p.escribiendo}
             className="h-12 min-w-0 flex-1 rounded-[4px] border border-line bg-white px-4 text-[16px] outline-none focus:border-ink focus-visible:outline-none"
           />
           <button
             type="button"
             onClick={() => p.onEnviar(p.input)}
             aria-label="Enviar"
+            disabled={p.disabled || p.escribiendo || !p.input.trim()}
             className="h-12 w-12 flex-none cursor-pointer rounded-[4px] border-0 bg-ink text-[18px] text-white transition-transform duration-150 active:scale-[0.95]"
           >
             ↑

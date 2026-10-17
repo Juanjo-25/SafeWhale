@@ -1,0 +1,99 @@
+{
+  "contrato": "0x5A2D25E1e25E55855DE6733ddB1A29b1e592eA24",
+  "chainId": 10143,
+  "started": "2026-10-17T21:57:53.978Z",
+  "polizas": [
+    "1",
+    "2"
+  ],
+  "ataque": {
+    "ok": true,
+    "modo": "testnet",
+    "txHash": null,
+    "duracionMs": 0,
+    "rechazado": true,
+    "motivo": "SinCaida",
+    "mensaje": "No existe una caída reportada para esta póliza.",
+    "comprobacion": "eth_call_sin_transaccion"
+  },
+  "caida": {
+    "id": "1",
+    "inicio": 1792274286,
+    "reportadoEn": 1792274303,
+    "duracionSegundos": 10,
+    "pagosRealizados": 0
+  },
+  "reclamo": {
+    "ok": true,
+    "modo": "testnet",
+    "txHash": "0x870e69ca696e2e2151a7cd5c42cd5f361851a92ff77d80c76cc27730dba2060e",
+    "duracionMs": 1796
+  },
+  "eventos": [
+    {
+      "id": "0xe22d36c6e1bc60f807cc926c14d6f71582cf20dd2c23f01b469a583271f3deaa:1",
+      "tipo": "CoverComprada",
+      "polizaId": "1",
+      "servicioId": 1,
+      "txHash": "0xe22d36c6e1bc60f807cc926c14d6f71582cf20dd2c23f01b469a583271f3deaa",
+      "timestamp": 1792274221,
+      "ok": true,
+      "motivo": null,
+      "origen": "testnet",
+      "bloque": 71934040
+    },
+    {
+      "id": "0xc78580b30f9567ed508a76c138897387043466f81e5788f55238d0cf60fbef2b:9",
+      "tipo": "CoverComprada",
+      "polizaId": "2",
+      "servicioId": 1,
+      "txHash": "0xc78580b30f9567ed508a76c138897387043466f81e5788f55238d0cf60fbef2b",
+      "timestamp": 1792274275,
+      "ok": true,
+      "motivo": null,
+      "origen": "testnet",
+      "bloque": 71934219
+    },
+    {
+      "id": "0xb037eecc1015dc8d1c64add7717868bd30f31148c879e7bcb6b6a2bab70ae508:35",
+      "tipo": "CaidaReportada",
+      "polizaId": null,
+      "servicioId": 1,
+      "txHash": "0xb037eecc1015dc8d1c64add7717868bd30f31148c879e7bcb6b6a2bab70ae508",
+      "timestamp": 1792274303,
+      "ok": true,
+      "motivo": null,
+      "origen": "testnet",
+      "bloque": 71934310
+    },
+    {
+      "id": "0x870e69ca696e2e2151a7cd5c42cd5f361851a92ff77d80c76cc27730dba2060e:6",
+      "tipo": "Reclamado",
+      "polizaId": "2",
+      "txHash": "0x870e69ca696e2e2151a7cd5c42cd5f361851a92ff77d80c76cc27730dba2060e",
+      "timestamp": 1792274337,
+      "ok": true,
+      "motivo": null,
+      "origen": "testnet",
+      "bloque": 71934422
+    },
+    {
+      "id": "0x34a000b877d030e74df47cfbb679a4a8fa2bfc8505ce1419bfd87e46899798c2:76",
+      "tipo": "Pagado",
+      "polizaId": "1",
+      "txHash": "0x34a000b877d030e74df47cfbb679a4a8fa2bfc8505ce1419bfd87e46899798c2",
+      "timestamp": 1792274342,
+      "ok": true,
+      "motivo": null,
+      "origen": "testnet",
+      "bloque": 71934441
+    }
+  ],
+  "saldosFinales": {
+    "fondo": "0.998",
+    "bono": "0.49",
+    "exposicionTotal": "0.0"
+  },
+  "ok": true,
+  "finished": "2026-10-17T21:59:12.281Z"
+}

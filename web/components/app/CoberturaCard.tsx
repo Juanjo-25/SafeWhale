@@ -60,7 +60,7 @@ export function CoberturaCard(p: Props) {
         {p.mostrarRecientes && (
           <div className="flex w-full flex-col">
             {p.recientes.map((r, i) => (
-              <a key={i} href={r.url} target="_blank" rel="noopener" className="flex justify-between gap-[10px] border-t border-line-soft px-1 py-[10px] text-[14px] text-ink">
+              <a key={i} href={r.url || undefined} target="_blank" rel="noopener" className="flex justify-between gap-[10px] border-t border-line-soft px-1 py-[10px] text-[14px] text-ink">
                 <span>{r.titulo}</span>
                 <span className="font-mono text-muted">{r.hora}</span>
               </a>
@@ -76,9 +76,9 @@ export function CoberturaCard(p: Props) {
         <button type="button" onClick={p.onReclamar} disabled={!p.puedeReclamar} className={`${accion} cursor-pointer disabled:cursor-default`} style={{ opacity: p.puedeReclamar ? 1 : 0.4 }}>
           <span className="text-[24px] leading-none">↓</span><span className="text-[15px] text-[#4a4a4a]">Reclamar</span>
         </button>
-        <a href={p.explorerUrl} target="_blank" rel="noopener" className={`${accion} text-ink`}>
+        {p.explorerUrl ? <a href={p.explorerUrl} target="_blank" rel="noopener" className={`${accion} text-ink`}>
           <span className="text-[24px] leading-none">↗</span><span className="text-[15px] text-[#4a4a4a]">Explorer</span>
-        </a>
+        </a> : <span className={`${accion} opacity-40`}><span className="text-[24px] leading-none">·</span><span className="text-[15px]">Sin tx on-chain</span></span>}
       </div>
     </section>
   );

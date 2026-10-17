@@ -13,9 +13,15 @@ dist/
 .pnpm-store/
 *.tsbuildinfo
 web/next-env.d.ts
+api/next-env.d.ts
 
 # Estado compartido monitor <-> API (se genera en runtime)
 state.json
 state.json.*
 
 .DS_Store
+
+# Copias privadas y conexión administrativa (fuera del runtime de Next).
+supabase/.admin-connection.json
+supabase/.runtime-connection.json
+supabase/backups/
