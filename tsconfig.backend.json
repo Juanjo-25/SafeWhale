@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["web/lib/**/*.ts", "web/app/api/**/*.ts", "monitor/**/*.ts"],
+  "exclude": ["node_modules", "web/.next"]
+}

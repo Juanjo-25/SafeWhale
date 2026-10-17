@@ -1,0 +1,45 @@
+{
+  "name": "downtime-cover",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": ">=22 <25",
+    "pnpm": ">=10 <11"
+  },
+  "scripts": {
+    "preinstall": "node --input-type=module -e \"if (!process.env.npm_config_user_agent?.startsWith('pnpm/')) { console.error('Usa pnpm install para este proyecto.'); process.exit(1); }\"",
+    "dev": "node --import tsx monitor/serve-web.ts dev",
+    "build": "next build web",
+    "start": "node --import tsx monitor/serve-web.ts start",
+    "env:init": "node --import tsx monitor/init-env.ts",
+    "check:env": "node --import tsx monitor/check-env.ts",
+    "check:env:testnet": "node --import tsx monitor/check-env.ts testnet",
+    "check:env:gemini": "node --import tsx monitor/check-env.ts gemini",
+    "typecheck:backend": "tsc --project tsconfig.backend.json --noEmit",
+    "test:backend": "node --conditions=react-server --import tsx --test web/lib/*.test.ts",
+    "check:backend": "pnpm check:env && pnpm typecheck:backend && pnpm test:backend"
+  },
+  "dependencies": {
+    "@google/genai": "2.30.0",
+    "@next/env": "16.4.2",
+    "ethers": "6.17.0",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "server-only": "0.0.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"],
+    "ignoredBuiltDependencies": ["@google/genai", "protobufjs"]
+  }
+}

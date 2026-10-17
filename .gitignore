@@ -2,14 +2,20 @@
 .env
 .env.local
 .env*.local
+.env.*
+!.env.example
 
 # Dependencias y builds
 node_modules/
 .next/
 dist/
 .vercel/
+.pnpm-store/
+*.tsbuildinfo
+web/next-env.d.ts
 
 # Estado compartido monitor <-> API (se genera en runtime)
 state.json
+state.json.*
 
 .DS_Store
