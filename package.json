@@ -18,7 +18,7 @@
     "check:env:testnet": "node --import tsx monitor/check-env.ts testnet",
     "check:env:gemini": "node --import tsx monitor/check-env.ts gemini",
     "typecheck:backend": "tsc --project tsconfig.backend.json --noEmit",
-    "test:backend": "node --import tsx --test web/lib/env-schema.test.ts",
+    "test:backend": "node --conditions=react-server --import tsx --test web/lib/*.test.ts",
     "check:backend": "pnpm check:env && pnpm typecheck:backend && pnpm test:backend"
   },
   "dependencies": {

@@ -9,7 +9,7 @@ try {
   const command = process.argv[2];
   if (command !== "dev" && command !== "start") throw new Error("Comando de servidor inválido.");
   if (!process.env.NODE_ENV) process.env.NODE_ENV = command === "dev" ? "development" : "production";
-  const { env } = loadBackendEnvironment();
+  const { env, stateFile } = loadBackendEnvironment();
   const base = new URL(env.APP_BASE_URL);
   if (base.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(base.hostname) ||
       base.username || base.password || base.pathname !== "/" || base.search || base.hash) {
@@ -21,7 +21,10 @@ try {
   const args = [nextBin, command, webDirectory, "--hostname", "127.0.0.1", "--port", port];
   // Compilar las rutas API bajo demanda mientras P3 prepara página y layout.
   if (command === "dev") args.push("--webpack");
-  const child = spawn(process.execPath, args, { stdio: "inherit" });
+  const child = spawn(process.execPath, args, {
+    stdio: "inherit",
+    env: { ...process.env, STATE_FILE: stateFile },
+  });
   child.on("error", () => {
     console.error("No se pudo iniciar Next.js. Comprueba pnpm install y el puerto configurado.");
     process.exitCode = 1;
