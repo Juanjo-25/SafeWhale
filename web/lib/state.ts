@@ -1,9 +1,10 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { link, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { link, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute } from "node:path";
 import { getAddress, isAddress, ZeroAddress } from "ethers";
 import { z } from "zod";
+import lockfile from "proper-lockfile";
 
 const id = z.string().regex(/^(0|[1-9]\d*)$/);
 const money = z.string().regex(/^(0|[1-9]\d*)(\.\d{1,18})?$/);
@@ -28,17 +29,40 @@ const eventSchema = z.object({
   origen: z.literal("simulado"),
 });
 
+const mutationResultSchema = z.object({
+  ok: z.literal(true),
+  modo: z.literal("simulado"),
+  txHash: z.null(),
+  duracionMs: z.number().nonnegative(),
+  poliza: policySchema.optional(),
+  prima: money.optional(),
+  pagoFijo: money.optional(),
+  agenteActivo: z.boolean().optional(),
+  exchangeCaido: z.boolean().optional(),
+  caidaDesde: timestamp.nullable().optional(),
+});
+
+const idempotencySchema = z.object({
+  key: z.string().min(8).max(128),
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  status: z.union([z.literal(200), z.literal(201)]),
+  resultado: mutationResultSchema,
+});
+
 const snapshotSchema = z.object({
   schemaVersion: z.literal(1),
   fondo: money,
   bono: money,
   agenteActivo: z.boolean(),
   exchangeCaido: z.boolean(),
+  caidaIniciadaEn: timestamp.nullable().default(null),
   polizas: z.array(policySchema).refine((policies) => new Set(policies.map((policy) => policy.id)).size === policies.length),
   eventos: z.array(eventSchema),
+  idempotencia: z.array(idempotencySchema).default([]),
 });
 
 export type SimulationSnapshot = z.infer<typeof snapshotSchema>;
+export type SimulationMutationResult = z.infer<typeof mutationResultSchema>;
 
 export class StateError extends Error {
   constructor(readonly codigo: string, mensaje: string) {
@@ -58,9 +82,59 @@ function initialSnapshot(): SimulationSnapshot {
     bono: "0.500",
     agenteActivo: true,
     exchangeCaido: false,
+    caidaIniciadaEn: null,
     polizas: [],
     eventos: [],
+    idempotencia: [],
   };
+}
+
+// Todas las mutaciones de API/monitor deben pasar por esta función. No mantener
+// el bloqueo mientras se llama a Gemini o a un RPC: aquí solo se modifica JSON.
+export async function updateSimulationSnapshot<T>(file: string, update: (snapshot: SimulationSnapshot) => T): Promise<T> {
+  await readSimulationSnapshot(file);
+  let compromised = false;
+  let release: () => Promise<void>;
+  try {
+    release = await lockfile.lock(file, {
+      realpath: false,
+      stale: 10000,
+      update: 2000,
+      retries: { retries: 50, minTimeout: 10, maxTimeout: 100, factor: 1.2, randomize: true },
+      onCompromised: () => { compromised = true; },
+    });
+  } catch {
+    throw new StateError("STATE_BUSY", "El estado está ocupado. Reintenta con la misma Idempotency-Key.");
+  }
+
+  const temporary = `${file}.${randomUUID()}.tmp`;
+  let created = false;
+  try {
+    const snapshot = await readSimulationSnapshot(file);
+    const result = update(snapshot);
+    const parsed = snapshotSchema.safeParse(snapshot);
+    if (!parsed.success) throw new StateError("STATE_INVALID", "El cambio de estado no es válido y no fue guardado.");
+    if (compromised) throw new StateError("STATE_BUSY", "No se pudo conservar el bloqueo del estado.");
+    try {
+      await writeFile(temporary, `${JSON.stringify(parsed.data, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+      created = true;
+      if (compromised) throw new StateError("STATE_BUSY", "No se pudo conservar el bloqueo del estado.");
+      await rename(temporary, file);
+      created = false;
+    } catch (error) {
+      if (error instanceof StateError) throw error;
+      throw new StateError("STATE_UNAVAILABLE", "No se pudo guardar el estado local. Reintenta con la misma Idempotency-Key.");
+    }
+    return result;
+  } finally {
+    try {
+      if (created) await unlink(temporary);
+    } finally {
+      try { await release(); } catch {
+        throw new StateError("STATE_BUSY", "No se pudo liberar el estado. Reintenta con la misma Idempotency-Key.");
+      }
+    }
+  }
 }
 
 async function initializeSnapshot(file: string): Promise<void> {
