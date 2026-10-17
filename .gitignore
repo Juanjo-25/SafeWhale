@@ -1,0 +1,15 @@
+# Secretos: nunca subir llaves de las wallets de demo
+.env
+.env.local
+.env*.local
+
+# Dependencias y builds
+node_modules/
+.next/
+dist/
+.vercel/
+
+# Estado compartido monitor <-> API (se genera en runtime)
+state.json
+
+.DS_Store
