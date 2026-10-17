@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { scroll-behavior: smooth; }
+html, body { margin: 0; color: #141414; -webkit-font-smoothing: antialiased; }
+body {
+  font-family: var(--font-geist), system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  background-color: #e6e6e6;
+  background-image:
+    linear-gradient(rgba(110,150,190,0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(110,150,190,0.22) 1px, transparent 1px);
+  background-size: 100px 100px;
+  background-attachment: fixed;
+  min-height: 100dvh;
+}
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; touch-action: manipulation; }
+input { font: inherit; }
+:focus-visible { outline: 2px solid #141414; outline-offset: 2px; }
+
+@layer utilities {
+  /* Números, montos, hashes y cronómetros: siempre de ancho fijo */
+  .font-mono { font-variant-numeric: tabular-nums; }
+  /* Área táctil mínima de 44px sin cambiar el tamaño visible */
+  .hit-44 { position: relative; }
+  .hit-44::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+  .sr-only-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
