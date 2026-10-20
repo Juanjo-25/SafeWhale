@@ -11,7 +11,7 @@ export const MONAD_TESTNET = {
   blockExplorerUrls: ['https://testnet.monadvision.com'],
 };
 
-export const CONTRACT_LIMITS = { servicioId: 1, maxPolizasConReserva: 50 } as const;
+export const CONTRACT_LIMITS = { servicioId: 1, maxPolizasConReserva: 30 } as const;
 
 // Referencia para el próximo despliegue; todavía no son lecturas on-chain.
 export const DEMO_CONTRACT_PARAMETERS = {

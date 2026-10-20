@@ -3,9 +3,9 @@ import { HeroAnimacion } from './HeroAnimacion';
 import { btnPrimario } from './ui';
 
 const cifras = [
-  ['0,01 MON', ' por hora'],
-  ['0,5 MON', ' si se cae'],
-  ['~1 s', ' hasta tu cuenta']
+  ['0,001 MON', ' por hora'],
+  ['0,01 MON', ' pago fijo sujeto a condiciones'],
+  ['30', ' pagos máximos por evento']
 ];
 
 export function Hero() {
@@ -13,11 +13,11 @@ export function Hero() {
     <section id="inicio" className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,440px),1fr))] items-center gap-[clamp(32px,5vw,64px)] pt-[clamp(8px,3vw,40px)]">
       <div className="flex flex-col gap-[26px]">
         <span className="flex h-8 items-center gap-2 self-start whitespace-nowrap rounded-full bg-white px-[14px] text-[13.5px] text-ink-2 shadow-hairline">
-          <span className="h-[7px] w-[7px] rounded-full bg-ok" />En vivo en Monad Testnet
+        <span className="h-[7px] w-[7px] rounded-full bg-ok" />Prototipo · Monad Testnet
         </span>
         <h1 className="m-0 text-balance text-[clamp(42px,6.4vw,80px)] font-medium leading-[0.98] tracking-[-0.045em]">El seguro para tu negocio digital.</h1>
         <p className="m-0 max-w-[540px] text-pretty text-[clamp(18px,1.6vw,21px)] leading-[1.5] text-ink-2">
-          Si la página, la app o el sistema de pagos del que dependes se cae, te pagan automáticamente. No llamas a nadie ni llenas formularios.
+          En esta demo, el monitor observa un servicio simulado y reporta una caída verificable en Monad Testnet. Si cumple las reglas de la póliza y hay cupo, el contrato paga un monto fijo en MON de prueba.
         </p>
         <div className="flex flex-wrap gap-[10px]">
           <Link href="/app" className={btnPrimario}>Abrir app</Link>

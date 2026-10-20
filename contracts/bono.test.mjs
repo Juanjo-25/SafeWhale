@@ -59,10 +59,13 @@ test('ABI y bytecode guardados corresponden al código actual', () => {
 test('rechaza un mínimo que no cubra el tope y acepta el mínimo exacto', async (t) => {
   const { c, factory, args, provider } = await fixture(t);
   assert.equal(await c.stakeMinimo(), parseEther('0.30'));
+  assert.equal(await c.MAX_POLIZAS_CON_RESERVA(), 30n);
   for (const invalid of [payout, parseEther('0.30') - 1n]) {
     const invalidArgs = [...args]; invalidArgs[3] = invalid;
     await rejectsWith(provider.call(await factory.getDeployTransaction(...invalidArgs)), 'ParametrosInvalidos', c);
   }
+  const overCapacityArgs = [...args]; overCapacityArgs[7] = 31n;
+  await rejectsWith(provider.call(await factory.getDeployTransaction(...overCapacityArgs)), 'ParametrosInvalidos', c);
 });
 
 test('valida cero y montos extremos sin división por cero ni overflow', async (t) => {
@@ -110,9 +113,10 @@ test('un reclamo reduce el bono, bloquea retiros adicionales y permite pagar los
   assert.equal(await c.bondBalance(), 0n);
 });
 
-test('el mínimo financia los 30 reclamos; el 31 se rechaza por tope, sin consumir el fondo', async (t) => {
+test('el límite de reservas admite 30 pólizas y su bono cubre los 30 reclamos', async (t) => {
   const { c, user, send, buy, report } = await fixture(t, { bond: parseEther('0.30') });
-  for (let index = 0; index < 31; index++) await buy();
+  for (let index = 0; index < 30; index++) await buy();
+  await rejectsWith(c.connect(user).buyCover.staticCall(1, 1, { value: premium }), 'LimitePolizas', c);
   await report();
   const fund = await c.fundBalance();
   for (let id = 1; id <= 30; id++) {
@@ -123,18 +127,19 @@ test('el mínimo financia los 30 reclamos; el 31 se rechaza por tope, sin consum
   assert.equal(await c.bondBalance(), 0n);
   assert.equal(await c.fundBalance(), fund);
   assert.equal((await c.getOutage(1)).pagosRealizados, 30n);
-  await rejectsWith(c.connect(user).claimAgentFailure.staticCall(31), 'TopeEvento', c);
   await rejectsWith(c.connect(user).claimAgentFailure.staticCall(1), 'YaPagada', c);
 });
 
-test('pagos normales y reclamos comparten el tope y mantienen separadas ambas cuentas', async (t) => {
+test('reservas respetan el tope configurado y payouts y reclamos consumen el mismo cupo', async (t) => {
   const { c, agent, user, send, buy, report } = await fixture(t, { cap: 2, bond: payout * 2n });
-  await buy(); await buy(); await buy(); await report();
+  await buy(); await buy();
+  await rejectsWith(c.connect(user).buyCover.staticCall(1, 1, { value: premium }), 'LimitePolizas', c);
+  await report();
   const fund = await c.fundBalance();
   await send(c.connect(agent).payout(1));
   assert.equal(await c.bondBalance(), payout * 2n);
   await send(c.connect(user).claimAgentFailure(2));
   assert.equal(await c.bondBalance(), payout);
   assert.equal(await c.fundBalance(), fund - payout);
-  await rejectsWith(c.connect(user).claimAgentFailure.staticCall(3), 'TopeEvento', c);
+  assert.equal((await c.getOutage(1)).pagosRealizados, 2n);
 });

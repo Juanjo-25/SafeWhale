@@ -1,18 +1,18 @@
 import { SeccionCabecera, tarjeta } from './ui';
 
 const usos = [
-  { titulo: 'Guardar la plata', texto: 'El fondo vive en el contrato, no en una cuenta nuestra.', codigo: 'fund() · poolDisponible()' },
+  { titulo: 'Guardar la plata', texto: 'El fondo vive en el contrato, no en una cuenta nuestra.', codigo: 'fund() · fundBalance()' },
   { titulo: 'Registrar tu póliza', texto: 'Servicio y horario, públicos e inmodificables.', codigo: 'buyCover(servicio, horas)' },
   { titulo: 'Escribir las reglas del pago', texto: 'Monto fijo, una vez, solo al dueño.', codigo: 'payout(póliza)' },
-  { titulo: 'Dejar constancia de la caída', texto: 'Minutos y hash de evidencia, auditables.', codigo: 'reportOutage(min, evidencia)' },
+  { titulo: 'Dejar constancia de la caída', texto: 'Inicio, duración y hash del reporte del monitor de demo.', codigo: 'reportOutage(inicio, duración, evidencia)' },
   { titulo: 'Garantizar al agente', texto: 'Si no paga a tiempo, cobras de su bono.', codigo: 'claimAgentFailure(póliza)' },
-  { titulo: 'Que todo se pueda verificar', texto: 'Cada paso tiene su transacción pública.', codigo: 'testnet.monadvision.com' }
+  { titulo: 'Que todo se pueda verificar', texto: 'Las transacciones confirmadas son públicas; los controles del mock no son operaciones on-chain.', codigo: 'testnet.monadvision.com' }
 ];
 
 const razones = [
-  { glifo: '1s', color: 'bg-info', titulo: 'Finalidad de ~1 segundo', texto: 'Te pagan mientras el servicio sigue caído.' },
+  { glifo: '10s', color: 'bg-info', titulo: 'Observación continua', texto: 'El monitor espera el umbral configurado antes de reportar la caída.' },
   { glifo: '¢', color: 'bg-ok', titulo: 'Comisiones casi nulas', texto: 'Hacen viable cobrar por hora.' },
-  { glifo: '∥', color: 'bg-pool', titulo: 'Ejecución en paralelo', texto: 'Miles de pólizas pagadas a la vez.' }
+  { glifo: '30', color: 'bg-pool', titulo: 'Tope por evento', texto: 'Hasta 30 pólizas elegibles; en testnet el agente procesa cada pago por separado.' }
 ];
 
 export function Blockchain() {
@@ -20,8 +20,8 @@ export function Blockchain() {
     <section id="monad" className="flex scroll-mt-[100px] flex-col gap-[clamp(28px,4vw,48px)]">
       <SeccionCabecera
         eyebrow="04 · Por qué blockchain y por qué Monad"
-        titulo="La plata y las reglas no dependen de una empresa."
-        texto="Si pasa lo que dice el contrato, el pago sale solo y nadie te lo puede negar."
+        titulo="Las reglas del prototipo viven en el contrato."
+        texto="El agente es un oráculo de confianza en esta versión: el contrato comprueba sus reglas y límites, no la veracidad externa de la caída."
       />
       <div className="flex flex-col gap-[18px]">
         <span className="text-[22px] font-medium tracking-[-0.02em]">Para qué usamos la blockchain</span>

@@ -2,10 +2,10 @@ import Link from 'next/link';
 import { tarjeta } from './ui';
 
 const pasos = [
-  'Compras 8 horas por chat.',
+  'Cotiza y compra 4 horas por chat.',
   'Atacas al agente: el pago inválido revierte.',
-  'Tumbas el servicio: pago en menos de 1 s.',
-  'Modo Tormenta: 30 pólizas pagadas en paralelo.',
+  'Tumbas el mock y espera el umbral de observación y la confirmación.',
+  'Modo Tormenta: hasta 30 pagos procesados uno a uno, con receipt.',
   'Apagas el agente y cobras de su bono.'
 ];
 
@@ -13,7 +13,7 @@ export function DemoSeccion() {
   return (
     <section id="demo" className="grid scroll-mt-[100px] grid-cols-[repeat(auto-fit,minmax(min(100%,380px),1fr))] items-stretch gap-[clamp(16px,2.4vw,28px)]">
       <div className={`${tarjeta} flex flex-col gap-5 p-[clamp(24px,3vw,36px)]`}>
-        <span className="font-mono text-[14px] text-[oklch(0.6_0.17_55)]">05 · Demo de 90 s</span>
+        <span className="font-mono text-[14px] text-[oklch(0.6_0.17_55)]">05 · Demo guiada</span>
         <h2 className="m-0 text-balance text-[clamp(30px,3.6vw,44px)] font-medium leading-[1.05] tracking-[-0.035em]">Rómpelo tú mismo.</h2>
         <div className="flex flex-col">
           {pasos.map((t, i) => (

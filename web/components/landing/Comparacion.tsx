@@ -2,8 +2,8 @@ import { Fragment } from 'react';
 import { SeccionCabecera, tarjeta } from './ui';
 
 const filas = [
-  { k: 'Cómo se decide', a: 'Dato objetivo: minutos de caída', b: 'El mismo proveedor', c: 'Un ajustador revisa el caso' },
-  { k: 'Cómo te pagan', a: 'Plata, automático, en ~1 s', b: 'Créditos en la próxima factura', c: 'Tras el reclamo, en semanas' },
+  { k: 'Cómo se decide', a: 'Monitor de demo y reglas del contrato', b: 'El mismo proveedor', c: 'Un ajustador revisa el caso' },
+  { k: 'Cómo te pagan', a: 'MON de prueba, tras reporte y confirmación', b: 'Créditos en la próxima factura', c: 'Tras el reclamo, en semanas' },
   { k: 'Monto', a: 'Fijo, conocido de antemano', b: 'Un % de lo que pagas al proveedor', c: 'Según la pérdida demostrada' }
 ];
 

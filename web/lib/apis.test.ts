@@ -64,7 +64,10 @@ test("compras simultáneas con una misma clave cobran una sola vez", async (t) =
   const file = await fixture(t);
   const key = randomUUID();
   const responses = await Promise.all(Array.from({ length: 12 }, () => buy(request(input, key))));
-  for (const response of responses) assert.equal(response.status, 201);
+  for (const response of responses) {
+    const failure = response.status === 201 ? undefined : await response.clone().json();
+    assert.equal(response.status, 201, JSON.stringify(failure));
+  }
   const results = await Promise.all(responses.map((response) => response.json()));
   for (const result of results) assert.deepEqual(result, results[0]);
   assert.equal(responses.filter((response) => response.headers.get("idempotency-replayed") === "false").length, 1);
@@ -199,22 +202,25 @@ test("apagar detiene el interruptor de payouts sin deshabilitar la API ni borrar
   assert.equal(snapshot.eventos.filter((entry) => entry.tipo === "AgenteApagado").length, 1);
 });
 
-test('Binance y Stripe tienen compras y caídas independientes; restaurar conserva las pólizas', async (t) => {
+test('Exchange Demo y Stripe tienen compras y caídas independientes; restaurar conserva las pólizas', async (t) => {
   const file = await fixture(t);
   const stripe = { servicioId: 2, horas: 4 };
   const purchase = await (await buy(request(stripe))).json();
   assert.equal(purchase.poliza.servicioId, 2);
-  assert.equal((await drop(request({ servicioId: 1 }))).status, 200);
-  assert.equal((await buy(request(input))).status, 409);
-  assert.equal((await buy(request(stripe))).status, 201);
   const stripeMock = () => exchange(new Request('http://localhost/api/exchange-mock?servicioId=2'));
   assert.equal((await stripeMock()).status, 200);
-  assert.equal((await drop(request({ servicioId: 2 }))).status, 200);
+  const droppedStripe = await drop(request({ servicioId: 2 }));
+  assert.equal(droppedStripe.status, 200);
+  assert.equal((await droppedStripe.json()).exchangeCaido, false);
   assert.equal((await stripeMock()).status, 503);
   const key = randomUUID();
   const restored = await (await restore(request({ servicioId: 2 }, key))).json();
+  assert.equal(restored.exchangeCaido, false);
   assert.deepEqual(await (await restore(request({ servicioId: 2 }, key))).json(), restored);
   assert.equal((await stripeMock()).status, 200);
+  assert.equal((await drop(request({ servicioId: 1 }))).status, 200);
+  assert.equal((await buy(request(input))).status, 409);
+  assert.equal((await buy(request(stripe))).status, 201);
   assert.equal((await exchange()).status, 503);
   const snapshot = await readSimulationSnapshot(file);
   assert.equal(snapshot.polizas.length, 2);
@@ -229,7 +235,7 @@ test("el máximo cuenta las reservas pendientes y no reutiliza IDs anteriores", 
   const file = await fixture(t);
   const snapshot = await readSimulationSnapshot(file);
   const now = Math.floor(Date.now() / 1000);
-  snapshot.polizas = Array.from({ length: 50 }, (_, index) => ({
+  snapshot.polizas = Array.from({ length: 30 }, (_, index) => ({
     id: String(index + 1), dueno: "0x0000000000000000000000000000000000000001", servicioId: 1,
     inicio: now - 3600, fin: now + 3600, estado: "Activa",
   }));
@@ -242,5 +248,5 @@ test("el máximo cuenta las reservas pendientes y no reutiliza IDs anteriores", 
   await writeFile(file, JSON.stringify(snapshot));
   const accepted = await buy(request(input));
   assert.equal(accepted.status, 201);
-  assert.equal((await accepted.json()).poliza.id, "51");
+  assert.equal((await accepted.json()).poliza.id, "31");
 });

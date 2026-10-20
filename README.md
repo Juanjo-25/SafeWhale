@@ -41,7 +41,9 @@ pnpm wallets:balances
 `check:chain` verifica red 10143, bytecode de la versión actual, wallet del agente,
 bono mínimo y saldos. La configuración publicada no sustituye esa comprobación.
 El contrato solo cubre Exchange Demo (servicio 1); Stripe (2) está disponible en
-simulación. La caída siempre se activa en un mock local de demostración.
+simulación. La caída siempre se activa en un mock local de demostración. La demo
+permite hasta 30 reservas; el contrato limita cada instancia además al tope
+configurado del evento para no aceptar más pólizas de las que puede pagar.
 
 ## Recorrido de demo
 
@@ -52,9 +54,9 @@ simulación. La caída siempre se activa en un mock local de demostración.
    El monitor exige 10 segundos de observación continua, reporta y paga.
 4. Para reclamar del bono, apaga los pagos antes de tumbar. El monitor sigue
    reportando. Tras 30 segundos desde el reporte, el dueño puede reclamar.
-5. Tormenta paga hasta 30 pólizas elegibles, con resultados individuales y tiempo
-   medido hasta sus receipts. El monitor y la API serializan las firmas mediante
-   el mismo journal y bloqueo, incluyendo los nonces.
+5. Tormenta procesa hasta 30 pagos elegibles uno a uno, con resultados individuales
+   y tiempo medido hasta sus receipts. El monitor y la API serializan las firmas
+   mediante el mismo journal y bloqueo, incluyendo los nonces.
 
 Las pólizas con un derecho pendiente pueden reclamar después de vencer. El
 fondo y el bono se muestran separados. El bono mínimo es `0.30 MON` para hasta
@@ -63,6 +65,9 @@ El agente necesita también MON en su wallet para pagar gas.
 
 El contrato admite **una sola caída por despliegue**. Restaurar el mock no reinicia
 el contrato. Para ensayar otra caída, crea una instancia nueva con otra STATE_FILE.
+La versión fuente actual limita reservas a 30; el contrato ya desplegado no puede
+actualizarse. Después de recompilar esta versión, despliega una instancia nueva
+antes de volver a habilitar testnet.
 
 ## Preparar otra instancia
 

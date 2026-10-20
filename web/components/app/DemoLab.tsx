@@ -4,8 +4,8 @@ import { Punto } from './Punto';
 export interface Aviso { kind: 'warn' | 'err'; title: string; text: string }
 
 interface Props {
-  exchangeCaido: boolean;
-  servicioCaido: string;
+  servicioCaido: boolean;
+  servicioNombre: string;
   agenteActivo: boolean;
   agText: string;
   banner: Aviso | null;
@@ -39,18 +39,18 @@ function Pastilla({ dot, texto }: { dot: string; texto: string }) {
   );
 }
 
-export function DemoLab({ exchangeCaido, servicioCaido, agenteActivo, agText, banner, onTumbar, onAtacar, onTormenta, onApagar, disabled }: Props) {
+export function DemoLab({ servicioCaido, servicioNombre, agenteActivo, agText, banner, onTumbar, onAtacar, onTormenta, onApagar, disabled }: Props) {
   return (
     <section aria-label="Laboratorio de demo" className="flex flex-col gap-4 rounded-[28px] bg-white p-5 shadow-card">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-[17px] font-medium">Laboratorio de demo</span>
         <div className="flex flex-wrap gap-2">
-          <Pastilla dot={exchangeCaido ? C.red : C.green} texto={exchangeCaido ? servicioCaido + ' caído' : 'Servicios en línea'} />
+          <Pastilla dot={servicioCaido ? C.red : C.green} texto={servicioCaido ? servicioNombre + ' caído' : servicioNombre + ' disponible'} />
           <Pastilla dot={agenteActivo ? C.green : C.gray} texto={agText} />
         </div>
       </div>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,150px),1fr))] gap-[10px]">
-        <BotonLab glifo="↓" color={C.red} label={exchangeCaido ? 'Restaurar servicio' : 'Tumbar servicio'} sub={exchangeCaido ? 'Recupera el mock local' : 'Activa una caída del mock'} onClick={onTumbar} disabled={disabled} />
+        <BotonLab glifo="↓" color={C.red} label={servicioCaido ? 'Restaurar servicio' : 'Tumbar servicio'} sub={servicioCaido ? 'Recupera el mock local' : 'Activa una caída del mock'} onClick={onTumbar} disabled={disabled} />
         <BotonLab glifo="×" label="Atacar al agente" sub="Comprueba un payout inválido" onClick={onAtacar} disabled={disabled} />
         <BotonLab glifo="⁂" color={C.blue} label="Modo Tormenta" sub="Hasta 30 pagos con receipt" onClick={onTormenta} disabled={disabled} />
         <BotonLab glifo="○" label={agenteActivo ? 'Apagar pagos' : 'Habilitar pagos'} sub={agenteActivo ? 'El monitor sigue reportando' : 'Reactiva payouts del monitor'} onClick={onApagar} disabled={disabled} />

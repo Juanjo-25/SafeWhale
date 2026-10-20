@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { C } from '../colores';
 
-const CICLO_MS = 10000;
+const CICLO_MS = 20000;
 const N_BARRAS = 40;
 
 // Alturas iniciales deterministas (LCG entero) para que el HTML del servidor y del cliente coincidan.
@@ -23,12 +23,12 @@ const elapsed = (now: number, t0: number) => ((now - t0) % CICLO_MS) / 1000;
 
 function fase(e: number, lat: number): Fase {
   if (e < 3.5) return { status: 'En línea', dot: C.green, label: 'Tiempo de respuesta', value: lat + ' ms', valueColor: C.ink, polMeta: 'Activa', polText: 'Todo normal. Vigilo la pasarela mientras vendes.', pct: (e / 10 * 100) + '%' };
-  if (e < 6.5) {
-    const c = (e - 3.5) / 3 * 10;
+  if (e < 13.5) {
+    const c = e - 3.5;
     return { status: 'Sin respuesta', dot: C.orange, label: 'Caída en curso', value: fmt(c, 1) + ' / 10 s', valueColor: 'oklch(0.55 0.17 50)', polMeta: 'Umbral', polText: 'La pasarela no responde. Al pasar 10 s se reporta on-chain.', pct: (c * 10) + '%' };
   }
-  if (e < 7.12) return { status: 'Caída reportada', dot: C.blue, label: 'reportOutage → payout', value: Math.round((e - 6.5) * 1000) + ' ms', valueColor: 'oklch(0.5 0.15 250)', polMeta: 'Pagando', polText: 'Caída reportada. El contrato ejecuta el pago.', pct: '100%' };
-  return { status: 'Pagado', dot: C.green, label: 'Pagado a tu cuenta', value: '+0,5 MON', valueColor: 'oklch(0.5 0.14 150)', polMeta: 'Pagada', polText: 'Recibiste 0,5 MON. La pasarela sigue caída y tú ya cobraste.', pct: '100%' };
+  if (e < 15.5) return { status: 'Caída reportada', dot: C.blue, label: 'Esperando confirmación', value: 'transacción en curso', valueColor: 'oklch(0.5 0.15 250)', polMeta: 'Pendiente', polText: 'El agente envía el pago; la demo espera confirmación de la red.', pct: '100%' };
+  return { status: 'Pago confirmado', dot: C.green, label: 'Pago fijo de demo', value: '+0,01 MON', valueColor: 'oklch(0.5 0.14 150)', polMeta: 'Pagada', polText: 'Pago de testnet confirmado; la pasarela sigue caída.', pct: '100%' };
 }
 
 export function HeroAnimacion() {
@@ -53,13 +53,13 @@ export function HeroAnimacion() {
 
   const e = elapsed(s.now, s.t0);
   const h = fase(e, s.lat);
-  const paid = e >= 7.12;
+  const paid = e >= 15.5;
 
   return (
-    <div aria-label="Animación: la pasarela de pagos se cae y el contrato paga" role="img" className="relative pb-14">
+    <div aria-label="Ilustración: el mock de la demo cae, se reporta y el pago se confirma" role="img" className="relative pb-14">
       <div className="flex flex-col gap-[22px] rounded-[36px] bg-white px-[22px] pb-[22px] pt-[26px] shadow-hero">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[17px] font-medium text-muted">Pasarela de pagos</span>
+          <span className="text-[17px] font-medium text-muted">Servicio mock de la demo</span>
           <span className="flex h-[30px] items-center gap-[7px] rounded-full bg-soft px-3 text-[13px]">
             <span className="h-[7px] w-[7px] rounded-full transition-[background] duration-200 ease-[ease]" style={{ background: h.dot }} />
             {h.status}
@@ -93,8 +93,8 @@ export function HeroAnimacion() {
       >
         <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-ok text-[17px] text-white">✓</span>
         <div className="flex min-w-0 flex-1 flex-col">
-          <span className="text-[16px]">+0,5 MON en tu cuenta</span>
-          <span className="font-mono text-[13px] text-muted">payout(12) · 0,62 s después del reporte</span>
+          <span className="text-[16px]">+0,01 MON de prueba</span>
+          <span className="font-mono text-[13px] text-muted">payout confirmado en testnet</span>
         </div>
       </div>
     </div>

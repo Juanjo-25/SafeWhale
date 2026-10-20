@@ -141,7 +141,9 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
     catch (error) { setBanner({ kind: 'err', title: 'Acción sin confirmar', text: errorMessage(error) }); }
     finally { controlRef.current = false; setControlBusy(false); }
   };
-  const tumbar = () => control(() => s.exchangeCaido ? acciones.restaurar(servicio) : acciones.tumbar(servicio), s.exchangeCaido ? 'Servicio restaurado' : 'Caída activada en el mock');
+  const selectedService = s.servicios.find((service) => service.id === servicio);
+  const selectedServiceDown = selectedService?.caido ?? false;
+  const tumbar = () => control(() => selectedServiceDown ? acciones.restaurar(servicio) : acciones.tumbar(servicio), selectedServiceDown ? 'Servicio restaurado' : 'Caída activada en el mock');
   const apagar = () => control(() => acciones.apagarAgente(!s.agenteActivo), s.agenteActivo ? 'Pagos del agente desactivados' : 'Pagos del agente habilitados');
   const storm = async () => {
     const ids = s.polizas.filter((p) => s.caidasPagables[String(p.id)] && s.caidasPagables[String(p.id)] !== '0').slice(0, 30).map((p) => p.id);
@@ -163,8 +165,13 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
   const now = Math.max(reloj, Date.now());
   const pol: Poliza | undefined = s.polizas.find((p) => p.dueno.toLowerCase() === s.cuentaDemo?.toLowerCase());
   const active = !!pol && pol.estado === 0 && pol.fin > now;
+  const policyService = pol ? s.servicios.find((service) => service.id === pol.servicioId) : undefined;
+  const policyServiceDown = policyService?.caido ?? false;
+  const policyCaidaStart = policyService?.caidaIniciadaEn;
   const sinceRep = s.caidaReportada ? now - s.caidaReportada : 0;
-  const caidaMs = s.caidaInicio ? now - s.caidaInicio : 0;
+  const caidaMs = policyCaidaStart !== null && policyCaidaStart !== undefined
+    ? now - policyCaidaStart * 1000
+    : s.caidaInicio ? now - s.caidaInicio : 0;
   const R = s.tiempoReclamoSeg * 1000;
   const umbral = s.umbralSeg;
   const estadoOf = (p: Poliza) => (p.estado === 1 ? (p.via === 'bono' ? 'Pagada por bono' : 'Pagada') : p.estado === 2 || p.fin <= now ? 'Expirada' : 'Activa');
@@ -177,7 +184,7 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
   else if (eligible && sinceRep >= R) base = { head: 'Reclamo disponible', glyph: '!', color: C.red, text: 'El plazo de pago venció. Puedes cobrar desde el bono, incluso si la cobertura ya venció.', actionLabel: canClaim ? 'Reclamar ' + mon(s.indemnizacion) : 'Reclamo pendiente', action: canClaim ? () => claim(pol.id) : null };
   else if (eligible) base = { head: 'Caída reportada', meta: Math.max(0, Math.ceil((R - sinceRep) / 1000)) + ' s para reclamar', glyph: '↯', color: C.blue, text: s.agenteActivo ? 'El monitor puede ejecutar el pago hacia la cuenta de demo.' : 'Los pagos están desactivados. El reclamo quedará disponible al vencer la espera.' };
   else if (!active) base = { head: 'Póliza expirada', glyph: '·', color: C.gray, text: 'La cobertura llegó a su fecha de vencimiento.', actionLabel: 'Comprar otra', action: focusCover };
-  else if (s.exchangeCaido && !s.caidaReportada) base = { head: svcName(s.caidaSvc) + ' sin respuesta', meta: Math.floor(caidaMs / 1000) + ' / ' + umbral + ' s', glyph: '!', color: C.orange, text: 'Caída del mock registrada. El monitor exige continuidad durante el umbral antes de reportar.', hasBar: true, barPct: Math.min(100, caidaMs / (umbral * 10)) + '%' };
+  else if (policyServiceDown && !s.caidaReportada) base = { head: svcName(pol.servicioId) + ' sin respuesta', meta: Math.floor(caidaMs / 1000) + ' / ' + umbral + ' s', glyph: '!', color: C.orange, text: 'Caída del mock registrada. El monitor exige continuidad durante el umbral antes de reportar.', hasBar: true, barPct: Math.min(100, caidaMs / (umbral * 10)) + '%' };
   else if (s.caidaReportada && s.agenteActivo) base = { head: 'Caída reportada', meta: secs(sinceRep), glyph: '↯', color: C.blue, text: 'Ejecutando payout hacia tu cuenta.' };
   else if (s.caidaReportada && sinceRep < R) base = { head: 'El agente no pagó', meta: Math.ceil((R - sinceRep) / 1000) + ' s', glyph: '!', color: C.red, text: 'Se reportó la caída pero nadie llamó a payout. Cuando venza el plazo cobras del bono del agente.', hasBar: true, barPct: (sinceRep / R * 100) + '%' };
   else if (s.caidaReportada) base = { head: 'Plazo vencido', glyph: '!', color: C.red, text: 'El bono del agente responde por ti.', actionLabel: claiming ? 'Procesando reclamo…' : 'Reclamar ' + mon(s.indemnizacion), action: () => claim(pol.id) };
@@ -190,7 +197,7 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
   const expo = s.exposicionContrato ?? activas * s.indemnizacion;
   const pct = (a: number, b: number) => (b > 0 ? Math.max(0, Math.min(100, Math.round(a / b * 100))) : 0);
 
-  const alerta = !!pol && active && (s.exchangeCaido || !!s.caidaReportada);
+  const alerta = !!pol && active && (policyServiceDown || !!s.caidaReportada);
   const agentMsgs = mensajes.filter((m) => m.role === 'agent').length;
   const unread = chatOpen ? 0 : Math.max(0, agentMsgs - seen);
   const agText = 'Gemini · cotizaciones';
@@ -217,8 +224,8 @@ export function SafeWhaleApp({ demoInicial }: { demoInicial: boolean }) {
 
         {demo && (
           <DemoLab
-            exchangeCaido={s.exchangeCaido}
-            servicioCaido={svcName(s.caidaSvc)}
+            servicioCaido={selectedServiceDown}
+            servicioNombre={selectedService?.nombre ?? svcName(servicio)}
             agenteActivo={s.agenteActivo}
             agText={s.agenteActivo ? 'Pagos habilitados' : 'Pagos desactivados'}
             banner={null}

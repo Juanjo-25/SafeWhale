@@ -38,7 +38,7 @@ contract DowntimeCover {
 
     // Incluye pólizas vencidas que todavía conservan una reserva
     // por reportes pendientes o indemnizaciones pendientes.
-    uint256 public constant MAX_POLIZAS_CON_RESERVA = 50;
+    uint256 public constant MAX_POLIZAS_CON_RESERVA = 30;
 
     uint256 public immutable precioHora;
     uint256 public immutable indemnizacion;
@@ -242,7 +242,7 @@ contract DowntimeCover {
 
         _limpiarExpiradas();
 
-        if (_idsConReserva.length >= MAX_POLIZAS_CON_RESERVA) {
+        if (_idsConReserva.length >= topePorEvento) {
             revert LimitePolizas();
         }
 

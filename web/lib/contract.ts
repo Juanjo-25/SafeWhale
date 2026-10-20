@@ -11,7 +11,7 @@ import type { ParametrosJSON, PolizaJSON } from '../../shared/types';
 
 const simulation = { pricePerHour: DEMO_CONTRACT_PARAMETERS.precioHora,
   payout: formatEther(DEMO_CONTRACT_PARAMETERS.indemnizacion),
-  maxActivePolicies: CONTRACT_LIMITS.maxPolizasConReserva };
+  maxActivePolicies: Math.min(CONTRACT_LIMITS.maxPolizasConReserva, Number(DEMO_CONTRACT_PARAMETERS.topePorEvento)) };
 const simulatedOwner = "0x0000000000000000000000000000000000000001";
 
 export function simulationParameters(): ParametrosJSON {
@@ -47,7 +47,7 @@ export function assertSimulationPurchaseAvailable(snapshot: SimulationSnapshot, 
   if (snapshot.servicios[servicioId].caido) throw new ApiError("EXCHANGE_DOWN", "No se puede comprar cobertura durante la caída del servicio seleccionado.", 409);
   if (snapshot.caidas[String(servicioId) as '1' | '2']) throw new ApiError('CaidaYaReportada', 'Este servicio ya tuvo su único evento. Usa una instancia nueva.', 409);
   const reserved = simulationReserved(snapshot, now);
-  if (reserved.length >= simulation.maxActivePolicies) throw new ApiError("POLICY_LIMIT", "Se alcanzó el máximo de 50 pólizas con reserva.", 409);
+  if (reserved.length >= simulation.maxActivePolicies) throw new ApiError("POLICY_LIMIT", `Se alcanzó el máximo de ${simulation.maxActivePolicies} pólizas con reserva.`, 409);
   if (parseEther(snapshot.bono) < DEMO_CONTRACT_PARAMETERS.stakeMinimo) throw new ApiError('BonoInsuficiente', 'El bono está por debajo del mínimo garantizado.', 409);
 }
 
@@ -105,7 +105,7 @@ export async function dropSimulationExchange(env: BackendEnvironment, key: strin
       if (input.servicioId === 1) { snapshot.exchangeCaido = true; snapshot.caidaIniciadaEn = now; }
       event(snapshot, "ServicioCaido", now, null, input.servicioId);
     }
-    return { servicioId: input.servicioId, exchangeCaido: true, caidaDesde: service.caidaIniciadaEn };
+    return { servicioId: input.servicioId, exchangeCaido: snapshot.exchangeCaido, caidaDesde: service.caidaIniciadaEn };
   });
 }
 
@@ -118,7 +118,7 @@ export async function restoreSimulationService(env: BackendEnvironment, key: str
       if (input.servicioId === 1) { snapshot.exchangeCaido = false; snapshot.caidaIniciadaEn = null; }
       event(snapshot, "ServicioRestaurado", now, null, input.servicioId);
     }
-    return { servicioId: input.servicioId, exchangeCaido: false, caidaDesde: null };
+    return { servicioId: input.servicioId, exchangeCaido: snapshot.exchangeCaido, caidaDesde: null };
   });
 }
 

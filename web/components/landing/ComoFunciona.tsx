@@ -8,10 +8,10 @@ const pasos: { n: number; titulo: string; texto: string; visual: ReactNode }[] =
   {
     n: 1,
     titulo: 'Compras horas por chat',
-    texto: 'Eliges el servicio y las horas. La póliza queda en el contrato.',
+    texto: 'Eliges el servicio y las horas. En testnet la póliza queda registrada en el contrato.',
     visual: (
       <div className={`${caja} flex flex-col gap-[6px]`}>
-        <div className="flex justify-between text-[14px]"><span>Horas a cubrir</span><span>Prima: <span className="font-mono">0,04 MON</span></span></div>
+        <div className="flex justify-between text-[14px]"><span>Horas a cubrir</span><span>Prima: <span className="font-mono">0,004 MON</span></span></div>
         <span className="font-mono text-[22px]">4 h</span>
       </div>
     )
@@ -19,24 +19,24 @@ const pasos: { n: number; titulo: string; texto: string; visual: ReactNode }[] =
   {
     n: 2,
     titulo: 'El agente vigila',
-    texto: 'Revisa el servicio cada minuto desde varios lugares y reporta la caída on-chain.',
+    texto: 'En esta demo, el monitor revisa un mock cada 2 segundos y exige 10 segundos de caída continua antes de reportar.',
     visual: (
       <div className={`${caja} flex items-center gap-3`}>
         <span className={`${circulo} bg-brand font-semibold`}>!</span>
         <span className="flex-1 text-[15px]">Sin respuesta</span>
-        <span className="font-mono text-[14px] text-muted">10 / 10 s</span>
+        <span className="font-mono text-[14px] text-muted">umbral: 10 s</span>
       </div>
     )
   },
   {
     n: 3,
     titulo: 'El contrato te paga',
-    texto: 'Monto fijo, directo a tu cuenta. Si el agente falla, cobras de su bono.',
+    texto: 'Monto fijo en MON de prueba, directo al dueño de la póliza y sujeto al tope. Si el agente no paga, puedes reclamar del bono.',
     visual: (
       <div className={`${caja} flex items-center gap-3`}>
         <span className={`${circulo} bg-ok`}>✓</span>
         <span className="flex-1 text-[15px]">Pagado</span>
-        <span className="font-mono text-[14px] text-muted">+0,5 MON</span>
+        <span className="font-mono text-[14px] text-muted">+0,01 MON</span>
       </div>
     )
   }

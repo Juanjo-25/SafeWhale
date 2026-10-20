@@ -11,8 +11,10 @@ retirar el excedente sobre ese mínimo. Los reclamos sí descuentan indemnizacio
 del bono; si queda por debajo del mínimo, los retiros permanecen bloqueados
 hasta cerrar o liberar las reservas.
 
-La garantía cubre hasta el tope compartido entre payouts y reclamos. No aumenta
-ese tope ni garantiza un reclamo cuando la caída no fue reportada por el agente.
+El máximo de pólizas con reserva es 30, igual al tope predeterminado del evento.
+El constructor rechaza topes mayores a ese máximo. La garantía cubre hasta el
+tope compartido entre payouts y reclamos y no garantiza un reclamo cuando la
+caída no fue reportada por el agente.
 
 ## Verificación local
 
@@ -26,6 +28,7 @@ pnpm test:contracts
 Las pruebas compilan el contrato, lo ejecutan en una EVM local y verifican:
 
 - Rechazo de un mínimo insuficiente y aceptación del mínimo exacto.
+- Rechazo de topes mayores al máximo de pólizas con reserva.
 - Rechazo de parámetros extremos sin overflow o división por cero.
 - Bloqueo de compras antes de completar el bono.
 - Retiros con reservas vigentes y derechos posteriores al vencimiento.

@@ -96,7 +96,7 @@ Una lectura puede mostrar `Expirada` y conservar un derecho pendiente;
 
 Los getters de parámetros son `precioHora`, `indemnizacion`, `stakeMinimo`,
 `carencia`, `tiempoReclamo`, `umbralSegundos`, `topePorEvento`, `maxHoras` y
-`plazoReporte`. `SERVICIO_DEMO` vale 1 y `MAX_POLIZAS_CON_RESERVA` vale 50.
+`plazoReporte`. `SERVICIO_DEMO` vale 1 y `MAX_POLIZAS_CON_RESERVA` vale 30.
 `poolDisponible()` ya no existe: usar `fundBalance()` para el fondo;
 `bondBalance()` para el bono. `obtenerBalanceContrato()` devuelve el saldo físico
 total, que no debe usarse como fondo disponible.
@@ -106,7 +106,8 @@ Reglas del contrato:
 - Constructor: bono mínimo suficiente para todo el tope del evento. No puede
   desplegarse con un mínimo inferior a `indemnizacion × topePorEvento`.
 - Compra: prima exacta, solo servicio 1, de 1 a `maxHoras`, bono mínimo depositado,
-  fondo solvente, sin caída reportada y máximo de 50 reservas pendientes.
+  fondo solvente, sin caída reportada y reservas pendientes limitadas al menor
+  entre `topePorEvento` y `MAX_POLIZAS_CON_RESERVA` (30).
 - Elegibilidad: `poliza.inicio <= caida.inicio < poliza.fin`. El inicio de la caída
   es declarado por el agente, el oráculo de confianza. El hash identifica evidencia
   y no demuestra su veracidad. Una compra posterior al inicio no resulta elegible.
@@ -123,8 +124,11 @@ Reglas del contrato:
   bajo el mínimo, los retiros adicionales se bloquean mientras existan reservas.
 - El owner solo retira fondo que exceda las reservas. El agente solo retira bono
   conservando `stakeMinimo` mientras existan reservas, también después del vencimiento.
-- El tope comparte payouts y reclamos; no garantiza pagar las 50 pólizas si el
-  evento permite solo 30 pagos. Repetir el ensayo requiere una nueva instancia.
+- El máximo de reservas no supera el tope configurado del evento, por lo que todas
+  las pólizas reservadas pueden ser elegibles sin exceder el cupo compartido entre
+  payouts y reclamos. Repetir el ensayo requiere una nueva instancia.
+- La tormenta procesa transacciones en serie para conservar el orden de nonce del
+  agente; no envía pagos en paralelo.
 
 Eventos y campos publicados, en orden:
 
