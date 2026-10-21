@@ -1,0 +1,106 @@
+{
+  "content": {
+    "version": 1,
+    "namespace": "demo",
+    "createdAt": "2026-10-17T22:23:19.573Z",
+    "documents": [
+      {
+        "kind": "chain",
+        "payload": {
+          "eventos": [
+            {
+              "id": "0x828beba77cf7c0037bd26d534f41efcc700bf713192d9ddd97eaed401f263956:72",
+              "ok": true,
+              "tipo": "FondoDepositado",
+              "bloque": 71934623,
+              "motivo": null,
+              "origen": "testnet",
+              "txHash": "0x828beba77cf7c0037bd26d534f41efcc700bf713192d9ddd97eaed401f263956",
+              "polizaId": null,
+              "timestamp": 1792274397
+            },
+            {
+              "id": "0x34715402bc653d84e1a577b901bd18ef068824f9204a76ba87d9a25b22e31958:45",
+              "ok": true,
+              "tipo": "BonoDepositado",
+              "bloque": 71934629,
+              "motivo": null,
+              "origen": "testnet",
+              "txHash": "0x34715402bc653d84e1a577b901bd18ef068824f9204a76ba87d9a25b22e31958",
+              "polizaId": null,
+              "timestamp": 1792274399
+            }
+          ],
+          "monitor": {
+            "error": null,
+            "muestras": 0,
+            "inicioCaida": null,
+            "observadoDesde": null,
+            "ultimaRevision": 1792275766
+          },
+          "scanned": 71939147,
+          "version": 1,
+          "controls": {
+            "caido": false,
+            "caidaDesde": null,
+            "agenteActivo": true
+          },
+          "identity": {
+            "user": "0xD8a0D84e7ca13c2B45fB0b4a0a24E06a506B85E0",
+            "agent": "0xf4D440f40b6DfD8e30E8d4d1808f60983B7F1963",
+            "address": "0xBB2b88c645ecDcc85297137968C13F7aC84fB529",
+            "chainId": 10143,
+            "deployBlock": 71934615
+          },
+          "operations": {}
+        }
+      },
+      {
+        "kind": "monitor",
+        "payload": {
+          "identity": "0xBB2b88c645ecDcc85297137968C13F7aC84fB529",
+          "observations": [
+            {
+              "error": null,
+              "inicio": null,
+              "muestras": 0,
+              "servicioId": 1,
+              "observadoDesde": null
+            }
+          ]
+        }
+      }
+    ],
+    "events": [
+      {
+        "namespace": "demo",
+        "source_kind": "chain",
+        "id": "0x34715402bc653d84e1a577b901bd18ef068824f9204a76ba87d9a25b22e31958:45",
+        "tipo": "BonoDepositado",
+        "poliza_id": null,
+        "servicio_id": null,
+        "tx_hash": "0x34715402bc653d84e1a577b901bd18ef068824f9204a76ba87d9a25b22e31958",
+        "occurred_at": 1792274399,
+        "ok": true,
+        "motivo": null,
+        "origen": "testnet",
+        "bloque": 71934629
+      },
+      {
+        "namespace": "demo",
+        "source_kind": "chain",
+        "id": "0x828beba77cf7c0037bd26d534f41efcc700bf713192d9ddd97eaed401f263956:72",
+        "tipo": "FondoDepositado",
+        "poliza_id": null,
+        "servicio_id": null,
+        "tx_hash": "0x828beba77cf7c0037bd26d534f41efcc700bf713192d9ddd97eaed401f263956",
+        "occurred_at": 1792274397,
+        "ok": true,
+        "motivo": null,
+        "origen": "testnet",
+        "bloque": 71934623
+      }
+    ]
+  },
+  "sha256": "15468d841afd2fa7101adcf2a2baa2a9a8aad577d71097e29cd48ffaeef64c65"
+}
